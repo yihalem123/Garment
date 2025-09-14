@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, products, raw_materials, inventory, purchases, production, transfers, sales, returns, websocket, analytics, hr, business_intelligence, finance
+from app.api.routes import auth, products, raw_materials, inventory, purchases, production, transfers, sales, returns, websocket, analytics, hr, business_intelligence, finance, shops
 from app.core.config import settings
 from app.db.session import engine
 from app.models import Base
@@ -71,6 +71,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(products.router, prefix="/products", tags=["Products"])
 app.include_router(raw_materials.router, prefix="/raw-materials", tags=["Raw Materials"])
+app.include_router(shops.router, prefix="/shops", tags=["Shops"])
 app.include_router(inventory.router, prefix="/inventory", tags=["Inventory"])
 app.include_router(purchases.router, prefix="/purchases", tags=["Purchases"])
 app.include_router(production.router, prefix="/production", tags=["Production"])

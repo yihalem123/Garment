@@ -50,7 +50,7 @@ async def login_and_get_token():
     
     async with httpx.AsyncClient() as client:
         response = await client.post(f"{BASE_URL}/auth/login", data={
-            "username": "admin",
+            "username": "admin@garment.com",
             "password": "admin123"
         })
         
@@ -91,11 +91,11 @@ async def main():
         await test_with_auth(token)
     
     # Test basic endpoints
-    await test_endpoint("GET", "/products", description="Get all products")
-    await test_endpoint("GET", "/raw-materials", description="Get all raw materials")
-    await test_endpoint("GET", "/shops", description="Get all shops")
-    await test_endpoint("GET", "/stocks", description="Get stock items")
-    await test_endpoint("GET", "/stock-movements", description="Get stock movements")
+    await test_endpoint("GET", "/products/", description="Get all products")
+    await test_endpoint("GET", "/raw-materials/", description="Get all raw materials")
+    await test_endpoint("GET", "/shops/", description="Get all shops")
+    await test_endpoint("GET", "/inventory/stocks", description="Get stock items")
+    await test_endpoint("GET", "/inventory/stock-movements", description="Get stock movements")
     
     # Test analytics endpoints
     await test_endpoint("GET", "/analytics/dashboard", description="Dashboard analytics")

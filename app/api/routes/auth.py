@@ -63,7 +63,7 @@ async def login(
     ```
     curl -X POST "http://localhost:8000/auth/login" \
          -H "Content-Type: application/x-www-form-urlencoded" \
-         -d "username=admin@example.com&password=admin123"
+         -d "username=admin@garment.com&password=admin123"
     ```
     
     Example response:
