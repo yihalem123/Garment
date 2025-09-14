@@ -1,7 +1,8 @@
 """
 Transfer models
 """
-from datetime import datetime`nfrom typing import Optional, List, TYPE_CHECKING
+from datetime import datetime
+from typing import Optional, List, TYPE_CHECKING
 from decimal import Decimal
 from enum import Enum
 

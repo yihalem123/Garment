@@ -1,8 +1,8 @@
 """
 Shop model
 """
-from datetime import datetime`nfrom typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
+from typing import Optional, List, TYPE_CHECKING
 
 from sqlmodel import SQLModel, Field, Relationship
 

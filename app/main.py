@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, products, raw_materials, inventory, purchases, production, transfers, sales, returns, websocket
+from app.api.routes import auth, products, raw_materials, inventory, purchases, production, transfers, sales, returns, websocket, analytics, hr, business_intelligence, finance
 from app.core.config import settings
 from app.db.session import engine
 from app.models import Base
@@ -78,6 +78,10 @@ app.include_router(transfers.router, prefix="/transfers", tags=["Transfers"])
 app.include_router(sales.router, prefix="/sales", tags=["Sales"])
 app.include_router(returns.router, prefix="/returns", tags=["Returns"])
 app.include_router(websocket.router, tags=["WebSocket"])
+app.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
+app.include_router(hr.router, prefix="/hr", tags=["Human Resources"])
+app.include_router(business_intelligence.router, prefix="/business-intelligence", tags=["Business Intelligence"])
+app.include_router(finance.router, prefix="/finance", tags=["Finance"])
 
 
 @app.get("/")

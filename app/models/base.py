@@ -2,7 +2,7 @@
 Base model class
 """
 from datetime import datetime
-from datetime import datetime`nfrom typing import Optional
+from typing import Optional
 
 from sqlmodel import SQLModel, Field
 

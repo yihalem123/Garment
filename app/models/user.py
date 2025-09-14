@@ -1,9 +1,9 @@
 """
 User model
 """
-from datetime import datetime`nfrom typing import Optional, TYPE_CHECKING
-from enum import Enum
 from datetime import datetime
+from typing import Optional, TYPE_CHECKING
+from enum import Enum
 
 from sqlmodel import SQLModel, Field, Relationship
 

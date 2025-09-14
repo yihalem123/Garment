@@ -11,6 +11,10 @@ A comprehensive REST API for managing garment business operations including inve
 - **Transfer Management**: Transfer products between shops with stock reservation
 - **Sales Management**: Process sales with real-time stock validation and simple payment tracking (cash/bank transfer)
 - **Returns Management**: Handle product returns with stock adjustments
+- **Business Analytics**: Comprehensive dashboard with KPIs, trends, and performance metrics
+- **Human Resource Management**: Employee management, performance tracking, and workforce analytics
+- **Financial Reporting**: Profit & Loss statements, cash flow analysis, balance sheets, and financial ratios
+- **Business Intelligence**: Advanced analytics, comparative analysis, and business health scoring
 - **Real-time Updates**: WebSocket support for live notifications
 - **Background Jobs**: Celery-based task processing for notifications and reports
 - **Comprehensive Testing**: Unit and integration tests with pytest
@@ -102,6 +106,38 @@ All endpoints (except `/auth/login`) require authentication. Include the JWT tok
 
 ```bash
 curl -H "Authorization: Bearer <your-token>" http://localhost:8000/products/
+```
+
+### Payment System
+
+The system supports a simplified payment model with two payment methods:
+
+- **Cash**: Physical cash payments with optional receipt number tracking
+- **Bank Transfer**: Bank transfer payments with transaction reference tracking
+
+No POS (Point of Sale) integration is included - all payment details are entered as text fields. The `reference` field can be used for:
+- Cash payments: Receipt numbers or cash register references
+- Bank transfers: Transaction IDs or bank reference numbers
+
+Example payment objects:
+```json
+{
+  "amount": 50.00,
+  "payment_method": "cash",
+  "payment_date": "2024-01-15",
+  "reference": "RCP-001",
+  "notes": "Cash payment received"
+}
+```
+
+```json
+{
+  "amount": 100.00,
+  "payment_method": "bank_transfer",
+  "payment_date": "2024-01-15",
+  "reference": "TXN-123456789",
+  "notes": "Bank transfer confirmed"
+}
 ```
 
 ### Sample API Calls
@@ -212,6 +248,36 @@ curl -X POST "http://localhost:8000/transfers/" \
          }
        ]
      }'
+```
+
+#### 8. Get Business Dashboard
+```bash
+curl -X GET "http://localhost:8000/analytics/dashboard?start_date=2024-01-01&end_date=2024-01-31" \
+     -H "Authorization: Bearer <token>"
+```
+
+#### 9. Get Profit & Loss Statement
+```bash
+curl -X GET "http://localhost:8000/finance/profit-loss-statement?start_date=2024-01-01&end_date=2024-01-31" \
+     -H "Authorization: Bearer <token>"
+```
+
+#### 10. Get Key Performance Indicators
+```bash
+curl -X GET "http://localhost:8000/business-intelligence/kpis?start_date=2024-01-01&end_date=2024-01-31" \
+     -H "Authorization: Bearer <token>"
+```
+
+#### 11. Get Employee Performance
+```bash
+curl -X GET "http://localhost:8000/hr/performance?start_date=2024-01-01&end_date=2024-01-31" \
+     -H "Authorization: Bearer <token>"
+```
+
+#### 12. Get Business Health Score
+```bash
+curl -X GET "http://localhost:8000/business-intelligence/business-health" \
+     -H "Authorization: Bearer <token>"
 ```
 
 ## Environment Variables
@@ -377,6 +443,32 @@ The system includes the following main entities:
 
 ### WebSocket
 - `WS /ws` - WebSocket connection for real-time updates
+
+### Business Analytics
+- `GET /analytics/dashboard` - Comprehensive business dashboard
+- `GET /analytics/profit-loss` - Profit and loss analysis
+- `GET /analytics/inventory-report` - Detailed inventory report
+- `GET /analytics/financial-summary` - Financial summary and breakdown
+
+### Human Resources
+- `GET /hr/employees` - List employees with filtering
+- `POST /hr/employees` - Create new employee
+- `PUT /hr/employees/{id}` - Update employee information
+- `DELETE /hr/employees/{id}` - Deactivate employee
+- `GET /hr/performance` - Employee performance metrics
+- `GET /hr/workforce-summary` - Workforce statistics and summary
+
+### Business Intelligence
+- `GET /business-intelligence/kpis` - Key Performance Indicators
+- `GET /business-intelligence/trends` - Business trends over time
+- `GET /business-intelligence/comparative-analysis` - Period-over-period analysis
+- `GET /business-intelligence/business-health` - Business health score and recommendations
+
+### Finance
+- `GET /finance/profit-loss-statement` - Comprehensive P&L statement
+- `GET /finance/cash-flow-statement` - Cash flow analysis
+- `GET /finance/balance-sheet` - Balance sheet report
+- `GET /finance/financial-ratios` - Financial ratios and analysis
 
 ## Contributing
 
