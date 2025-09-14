@@ -68,7 +68,7 @@ async def get_business_dashboard(
         func.avg(Sale.final_amount).label("avg_sale_amount")
     ).where(and_(date_filter, Sale.status == SaleStatus.COMPLETED))
     
-    sales_result = await db.exec(sales_query)
+    sales_result = await db.execute(sales_query)
     sales_stats = sales_result.first()
     
     # Top Selling Products
@@ -84,8 +84,8 @@ async def get_business_dashboard(
      .order_by(desc("total_revenue"))\
      .limit(10)
     
-    top_products = await db.exec(top_products_query)
-    top_products_list = top_products.all()
+    top_products = await db.execute(top_products_query)
+    top_products_list = top_products.scalars().all()
     
     # Inventory Status
     inventory_query = select(
@@ -97,7 +97,7 @@ async def get_business_dashboard(
     if shop_id:
         inventory_query = inventory_query.where(StockItem.shop_id == shop_id)
     
-    inventory_result = await db.exec(inventory_query)
+    inventory_result = await db.execute(inventory_query)
     inventory_stats = inventory_result.first()
     
     # Low Stock Items
@@ -108,8 +108,8 @@ async def get_business_dashboard(
     if shop_id:
         low_stock_query = low_stock_query.where(StockItem.shop_id == shop_id)
     
-    low_stock_items = await db.exec(low_stock_query)
-    low_stock_list = low_stock_items.all()
+    low_stock_items = await db.execute(low_stock_query)
+    low_stock_list = low_stock_items.scalars().all()
     
     # Production Status
     production_query = select(
@@ -119,14 +119,14 @@ async def get_business_dashboard(
         func.sum(ProductionRun.total_cost).label("total_cost")
     ).where(ProductionRun.status == ProductionStatus.COMPLETED)
     
-    production_result = await db.exec(production_query)
+    production_result = await db.execute(production_query)
     production_stats = production_result.first()
     
     # Recent Activities
     recent_sales_query = select(Sale).where(date_filter)\
         .order_by(desc(Sale.created_at)).limit(5)
-    recent_sales = await db.exec(recent_sales_query)
-    recent_sales_list = recent_sales.all()
+    recent_sales = await db.execute(recent_sales_query)
+    recent_sales_list = recent_sales.scalars().all()
     
     return {
         "period": {
@@ -225,8 +225,8 @@ async def get_profit_loss_analysis(
         sales_filter = and_(sales_filter, Sale.shop_id == shop_id)
     
     revenue_query = select(func.sum(Sale.final_amount)).where(sales_filter)
-    revenue_result = await db.exec(revenue_query)
-    total_revenue = revenue_result.first() or 0
+    revenue_result = await db.execute(revenue_query)
+    total_revenue = revenue_result.scalar_one_or_none() or 0
     
     # Cost of Goods Sold (COGS) - based on product cost prices
     cogs_query = select(
@@ -235,8 +235,8 @@ async def get_profit_loss_analysis(
      .join(Sale, SaleLine.sale_id == Sale.id)\
      .where(sales_filter)
     
-    cogs_result = await db.exec(cogs_query)
-    total_cogs = cogs_result.first() or 0
+    cogs_result = await db.execute(cogs_query)
+    total_cogs = cogs_result.scalar_one_or_none() or 0
     
     # Production Costs
     production_filter = and_(
@@ -246,8 +246,8 @@ async def get_profit_loss_analysis(
     )
     
     production_cost_query = select(func.sum(ProductionRun.total_cost)).where(production_filter)
-    production_cost_result = await db.exec(production_cost_query)
-    total_production_cost = production_cost_result.first() or 0
+    production_cost_result = await db.execute(production_cost_query)
+    total_production_cost = production_cost_result.scalar_one_or_none() or 0
     
     # Purchase Costs
     purchase_filter = and_(
@@ -256,8 +256,8 @@ async def get_profit_loss_analysis(
     )
     
     purchase_cost_query = select(func.sum(Purchase.total_amount)).where(purchase_filter)
-    purchase_cost_result = await db.exec(purchase_cost_query)
-    total_purchase_cost = purchase_cost_result.first() or 0
+    purchase_cost_result = await db.execute(purchase_cost_query)
+    total_purchase_cost = purchase_cost_result.scalar_one_or_none() or 0
     
     # Calculate profits and margins
     gross_profit = total_revenue - total_cogs
@@ -332,8 +332,8 @@ async def get_inventory_report(
     if filters:
         query = query.where(and_(*filters))
     
-    inventory_items = await db.exec(query)
-    items_list = inventory_items.all()
+    inventory_items = await db.execute(query)
+    items_list = inventory_items.scalars().all()
     
     # Calculate total values
     total_items = len(items_list)
@@ -441,8 +441,8 @@ async def get_financial_summary(
      ))\
      .group_by(Payment.payment_method)
     
-    revenue_by_payment = await db.exec(revenue_by_payment_query)
-    payment_breakdown = revenue_by_payment.all()
+    revenue_by_payment = await db.execute(revenue_by_payment_query)
+    payment_breakdown = revenue_by_payment.scalars().all()
     
     # Total revenue
     total_revenue_query = select(func.sum(Sale.final_amount)).where(and_(
@@ -450,8 +450,8 @@ async def get_financial_summary(
         Sale.sale_date <= end_date,
         Sale.status == SaleStatus.COMPLETED
     ))
-    total_revenue_result = await db.exec(total_revenue_query)
-    total_revenue = total_revenue_result.first() or 0
+    total_revenue_result = await db.execute(total_revenue_query)
+    total_revenue = total_revenue_result.scalar_one_or_none() or 0
     
     # Total costs
     total_costs_query = select(
@@ -464,8 +464,8 @@ async def get_financial_summary(
         )
     ))
     
-    costs_result = await db.exec(total_costs_query)
-    costs_data = costs_result.first()
+    costs_result = await db.execute(total_costs_query)
+    costs_data = costs_result.scalar_one_or_none()
     
     total_costs = (costs_data.purchase_costs or 0) + (costs_data.production_costs or 0)
     

@@ -6,6 +6,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_session
 from app.models import (
@@ -38,9 +39,12 @@ async def get_production_runs(
          -H "Authorization: Bearer <token>"
     ```
     """
-    statement = select(ProductionRun).offset(skip).limit(limit).order_by(ProductionRun.created_at.desc())
-    production_runs = await db.exec(statement)
-    return production_runs.all()
+    statement = select(ProductionRun).options(
+        selectinload(ProductionRun.production_lines),
+        selectinload(ProductionRun.production_consumptions)
+    ).offset(skip).limit(limit).order_by(ProductionRun.created_at.desc())
+    result = await db.execute(statement)
+    return result.scalars().all()
 
 
 @router.get("/{production_run_id}", response_model=ProductionRunResponse)
@@ -52,9 +56,12 @@ async def get_production_run(
     """
     Get a specific production run by ID
     """
-    statement = select(ProductionRun).where(ProductionRun.id == production_run_id)
-    production_run = await db.exec(statement)
-    production_run = production_run.first()
+    statement = select(ProductionRun).options(
+        selectinload(ProductionRun.production_lines),
+        selectinload(ProductionRun.production_consumptions)
+    ).where(ProductionRun.id == production_run_id)
+    result = await db.execute(statement)
+    production_run = result.scalar_one_or_none()
     
     if not production_run:
         raise HTTPException(
@@ -101,68 +108,76 @@ async def create_production_run(
     }
     ```
     """
-    async with db.begin():
-        # Check if run number already exists
-        statement = select(ProductionRun).where(ProductionRun.run_number == production_data.run_number)
-        existing_run = await db.exec(statement)
-        if existing_run.first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Production run with this number already exists"
-            )
-        
-        # Create production run
-        db_production_run = ProductionRun(
-            run_number=production_data.run_number,
-            planned_quantity=production_data.planned_quantity,
-            labor_cost=production_data.labor_cost,
-            overhead_cost=production_data.overhead_cost,
-            start_date=production_data.start_date,
-            notes=production_data.notes,
-            status=ProductionStatus.PLANNED
+    # Check if run number already exists
+    statement = select(ProductionRun).where(ProductionRun.run_number == production_data.run_number)
+    result = await db.execute(statement)
+    existing_run = result.scalar_one_or_none()
+    if existing_run:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Production run with this number already exists"
         )
-        
-        db.add(db_production_run)
-        await db.flush()  # Get the ID
-        
-        # Create production lines
-        for line_data in production_data.production_lines:
-            production_line = ProductionLine(
+    
+    # Create production run
+    db_production_run = ProductionRun(
+        run_number=production_data.run_number,
+        planned_quantity=production_data.planned_quantity,
+        labor_cost=production_data.labor_cost,
+        overhead_cost=production_data.overhead_cost,
+        start_date=production_data.start_date,
+        notes=production_data.notes,
+        status=ProductionStatus.PLANNED
+    )
+    
+    db.add(db_production_run)
+    await db.flush()  # Get the ID
+    
+    # Create production lines
+    for line_data in production_data.production_lines:
+        production_line = ProductionLine(
+            production_run_id=db_production_run.id,
+            product_id=line_data.product_id,
+            planned_quantity=line_data.planned_quantity
+        )
+        db.add(production_line)
+    
+    # Create production consumptions (if provided, otherwise auto-calculate)
+    if production_data.production_consumptions:
+        for consumption_data in production_data.production_consumptions:
+            production_consumption = ProductionConsumption(
                 production_run_id=db_production_run.id,
-                product_id=line_data.product_id,
-                planned_quantity=line_data.planned_quantity
+                raw_material_id=consumption_data.raw_material_id,
+                planned_consumption=consumption_data.planned_consumption
             )
-            db.add(production_line)
-        
-        # Create production consumptions (if provided, otherwise auto-calculate)
-        if production_data.production_consumptions:
-            for consumption_data in production_data.production_consumptions:
+            db.add(production_consumption)
+    else:
+        # Auto-calculate consumption based on fabric rules
+        for line_data in production_data.production_lines:
+            statement = select(FabricRule).where(FabricRule.product_id == line_data.product_id)
+            result = await db.execute(statement)
+            fabric_rules = result.scalars().all()
+            
+            for rule in fabric_rules:
+                planned_consumption = rule.consumption_per_unit * line_data.planned_quantity
                 production_consumption = ProductionConsumption(
                     production_run_id=db_production_run.id,
-                    raw_material_id=consumption_data.raw_material_id,
-                    planned_consumption=consumption_data.planned_consumption
+                    raw_material_id=rule.raw_material_id,
+                    planned_consumption=planned_consumption
                 )
                 db.add(production_consumption)
-        else:
-            # Auto-calculate consumption based on fabric rules
-            for line_data in production_data.production_lines:
-                statement = select(FabricRule).where(FabricRule.product_id == line_data.product_id)
-                fabric_rules = await db.exec(statement)
-                fabric_rules = fabric_rules.all()
-                
-                for rule in fabric_rules:
-                    planned_consumption = rule.consumption_per_unit * line_data.planned_quantity
-                    production_consumption = ProductionConsumption(
-                        production_run_id=db_production_run.id,
-                        raw_material_id=rule.raw_material_id,
-                        planned_consumption=planned_consumption
-                    )
-                    db.add(production_consumption)
-        
-        await db.commit()
-        await db.refresh(db_production_run)
     
-    return db_production_run
+    await db.commit()
+    await db.refresh(db_production_run)
+    
+    # Eager load relationships for response serialization
+    statement = select(ProductionRun).options(
+        selectinload(ProductionRun.production_lines),
+        selectinload(ProductionRun.production_consumptions)
+    ).where(ProductionRun.id == db_production_run.id)
+    result = await db.execute(statement)
+    production_run_with_relations = result.scalar_one()
+    
+    return production_run_with_relations
 
 
 @router.post("/{production_run_id}/complete", response_model=ProductionRunResponse)
@@ -200,8 +215,9 @@ async def complete_production_run(
     async with db.begin():
         # Get production run
         statement = select(ProductionRun).where(ProductionRun.id == production_run_id)
-        production_run = await db.exec(statement)
-        production_run = production_run.first()
+        result = await db.execute(statement)
+        production_run = result.scalar_one_or_none()
+        # production_run is already a single object from scalar_one_or_none()
         
         if not production_run:
             raise HTTPException(
@@ -217,12 +233,12 @@ async def complete_production_run(
         
         # Get production lines and consumptions
         statement = select(ProductionLine).where(ProductionLine.production_run_id == production_run_id)
-        production_lines = await db.exec(statement)
-        production_lines = production_lines.all()
+        result = await db.execute(statement)
+        production_lines = result.scalars().all()
         
         statement = select(ProductionConsumption).where(ProductionConsumption.production_run_id == production_run_id)
-        production_consumptions = await db.exec(statement)
-        production_consumptions = production_consumptions.all()
+        result = await db.execute(statement)
+        production_consumptions = result.scalars().all()
         
         # Validate raw material availability
         for consumption in production_consumptions:
@@ -232,8 +248,9 @@ async def complete_production_run(
                     StockItem.item_type == ItemType.RAW_MATERIAL
                 )
             )
-            stock_item = await db.exec(statement)
-            stock_item = stock_item.first()
+            result = await db.execute(statement)
+            stock_item = result.scalar_one_or_none()
+            # stock_item is already a single object from scalar_one_or_none()
             
             if not stock_item:
                 raise HTTPException(
@@ -261,8 +278,9 @@ async def complete_production_run(
                     StockItem.item_type == ItemType.RAW_MATERIAL
                 )
             )
-            stock_item = await db.exec(statement)
-            stock_item = stock_item.first()
+            result = await db.execute(statement)
+            stock_item = result.scalar_one_or_none()
+            # stock_item is already a single object from scalar_one_or_none()
             
             stock_item.quantity -= consumption.planned_consumption
             
@@ -281,8 +299,9 @@ async def complete_production_run(
             # Calculate raw material cost
             from app.models import RawMaterial
             statement = select(RawMaterial).where(RawMaterial.id == consumption.raw_material_id)
-            raw_material = await db.exec(statement)
-            raw_material = raw_material.first()
+            result = await db.execute(statement)
+            raw_material = result.scalar_one_or_none()
+            # raw_material is already a single object from scalar_one_or_none()
             raw_material_cost += raw_material.unit_price * consumption.planned_consumption
         
         # Process product production
@@ -294,8 +313,9 @@ async def complete_production_run(
                     StockItem.item_type == ItemType.PRODUCT
                 )
             )
-            stock_item = await db.exec(statement)
-            stock_item = stock_item.first()
+            result = await db.execute(statement)
+            stock_item = result.scalar_one_or_none()
+            # stock_item is already a single object from scalar_one_or_none()
             
             if not stock_item:
                 # Create new stock item

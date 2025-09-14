@@ -54,8 +54,8 @@ async def get_stocks(
     if conditions:
         statement = statement.where(and_(*conditions))
     
-    stock_items = await db.exec(statement)
-    results = stock_items.all()
+    stock_items = await db.execute(statement)
+    results = stock_items.scalars().all()
     
     # Add available_quantity field
     response_items = []
@@ -92,7 +92,7 @@ async def adjust_stock(
         # Find existing stock item
         conditions = [
             StockItem.shop_id == adjustment.shop_id,
-            StockItem.item_type == adjustment.item_type
+            StockItem.item_type == ItemType(adjustment.item_type)
         ]
         
         if adjustment.product_id:
@@ -101,8 +101,8 @@ async def adjust_stock(
             conditions.append(StockItem.raw_material_id == adjustment.raw_material_id)
         
         statement = select(StockItem).where(and_(*conditions))
-        stock_item = await db.exec(statement)
-        stock_item = stock_item.first()
+        stock_item = await db.execute(statement)
+        stock_item = stock_item.scalar_one_or_none()
         
         if not stock_item:
             raise HTTPException(
@@ -116,7 +116,7 @@ async def adjust_stock(
         # Create stock movement record
         stock_movement = StockMovement(
             shop_id=adjustment.shop_id,
-            item_type=adjustment.item_type,
+            item_type=ItemType(adjustment.item_type),
             product_id=adjustment.product_id,
             raw_material_id=adjustment.raw_material_id,
             quantity=adjustment.quantity,
@@ -125,7 +125,6 @@ async def adjust_stock(
         )
         
         db.add(stock_movement)
-        await db.commit()
     
     return {"message": "Stock adjusted successfully"}
 
@@ -171,5 +170,5 @@ async def get_stock_movements(
     statement = statement.order_by(StockMovement.created_at.desc())
     statement = statement.offset(skip).limit(limit)
     
-    stock_movements = await db.exec(statement)
-    return stock_movements.all()
+    stock_movements = await db.execute(statement)
+    return stock_movements.scalars().all()

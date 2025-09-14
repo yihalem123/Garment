@@ -55,20 +55,20 @@ async def get_employees(
     if filters:
         query = query.where(and_(*filters))
     
-    employees = await db.exec(query)
-    employees_list = employees.all()
+    result = await db.execute(query)
+    employees = result.scalars().all()
     
     # Get performance metrics for each employee
     employee_performance = []
     
-    for employee in employees_list:
+    for employee in employees:
         # Sales performance (if employee has sales)
         sales_query = select(
             func.count(Sale.id).label("total_sales"),
             func.sum(Sale.final_amount).label("total_revenue")
         ).where(Sale.shop_id == employee.shop_id)
         
-        sales_result = await db.exec(sales_query)
+        sales_result = await db.execute(sales_query)
         sales_data = sales_result.first()
         
         # Production performance (if employee is involved in production)
@@ -77,7 +77,7 @@ async def get_employees(
             func.sum(ProductionRun.planned_quantity).label("total_quantity")
         )
         
-        production_result = await db.exec(production_query)
+        production_result = await db.execute(production_query)
         production_data = production_result.first()
         
         employee_performance.append({
@@ -183,8 +183,9 @@ async def update_employee(
     
     # Get employee
     statement = select(User).where(User.id == employee_id)
-    employee = await db.exec(statement)
-    employee = employee.first()
+    result = await db.execute(statement)
+    employee = result.scalar_one_or_none()
+    # employee is already a single object from scalar_one_or_none()
     
     if not employee:
         raise HTTPException(
@@ -234,8 +235,9 @@ async def deactivate_employee(
     
     # Get employee
     statement = select(User).where(User.id == employee_id)
-    employee = await db.exec(statement)
-    employee = employee.first()
+    result = await db.execute(statement)
+    employee = result.scalar_one_or_none()
+    # employee is already a single object from scalar_one_or_none()
     
     if not employee:
         raise HTTPException(
@@ -300,8 +302,9 @@ async def get_employee_performance(
     if employee_id:
         # Get employee's shop
         employee_query = select(User).where(User.id == employee_id)
-        employee = await db.exec(employee_query)
-        employee = employee.first()
+        result = await db.execute(employee_query)
+        employee = result.scalar_one_or_none()
+        # employee is already a single object from scalar_one_or_none()
         if employee and employee.shop_id:
             filters.append(Sale.shop_id == employee.shop_id)
     elif shop_id:
@@ -322,14 +325,14 @@ async def get_employee_performance(
     ).where(and_(*filters))\
      .group_by(Sale.shop_id)
     
-    sales_result = await db.exec(sales_query)
-    sales_data = sales_result.all()
+    sales_result = await db.execute(sales_query)
+    sales_data = sales_result.scalars().all()
     
     # Get shop information
     shops_query = select(Shop)
-    shops = await db.exec(shops_query)
-    shops_list = shops.all()
-    shop_dict = {shop.id: shop.name for shop in shops_list}
+    result = await db.execute(shops_query)
+    shops = result.scalars().all()
+    shop_dict = {shop.id: shop.name for shop in shops}
     
     # Production performance
     production_query = select(
@@ -343,7 +346,7 @@ async def get_employee_performance(
         ProductionRun.status == "completed"
     ))
     
-    production_result = await db.exec(production_query)
+    production_result = await db.execute(production_query)
     production_data = production_result.first()
     
     return {
@@ -397,7 +400,7 @@ async def get_workforce_summary(
         func.count(User.id).label("count")
     ).group_by(User.role)
     
-    role_result = await db.exec(role_query)
+    role_result = await db.execute(role_query)
     role_distribution = role_result.all()
     
     # Active vs inactive
@@ -406,7 +409,7 @@ async def get_workforce_summary(
         func.count(User.id).label("count")
     ).group_by(User.is_active)
     
-    status_result = await db.exec(status_query)
+    status_result = await db.execute(status_query)
     status_distribution = status_result.all()
     
     # Shop-wise distribution
@@ -415,22 +418,22 @@ async def get_workforce_summary(
         func.count(User.id).label("count")
     ).group_by(User.shop_id)
     
-    shop_result = await db.exec(shop_query)
+    shop_result = await db.execute(shop_query)
     shop_distribution = shop_result.all()
     
     # Get shop names
     shops_query = select(Shop)
-    shops = await db.exec(shops_query)
-    shops_list = shops.all()
-    shop_dict = {shop.id: shop.name for shop in shops_list}
+    result = await db.execute(shops_query)
+    shops = result.scalars().all()
+    shop_dict = {shop.id: shop.name for shop in shops}
     
     # Recent hires (last 30 days)
     recent_hires_query = select(User).where(
         User.created_at >= datetime.now() - timedelta(days=30)
     ).order_by(desc(User.created_at)).limit(10)
     
-    recent_hires = await db.exec(recent_hires_query)
-    recent_hires_list = recent_hires.all()
+    result = await db.execute(recent_hires_query)
+    recent_hires = result.scalars().all()
     
     return {
         "role_distribution": [
@@ -465,6 +468,6 @@ async def get_workforce_summary(
                 "shop_name": shop_dict.get(hire.shop_id),
                 "created_at": hire.created_at
             }
-            for hire in recent_hires_list
+            for hire in recent_hires
         ]
     }

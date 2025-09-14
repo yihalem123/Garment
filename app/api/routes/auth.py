@@ -9,7 +9,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import authenticate_user, create_access_token, get_password_hash
+from app.core.security import authenticate_user_async, create_access_token, get_password_hash
 from app.db.session import get_session
 from app.models import User
 from app.schemas.auth import Token, UserCreate, UserResponse
@@ -41,9 +41,8 @@ async def get_current_user(
     if email is None:
         raise credentials_exception
     
-    statement = select(User).where(User.email == email)
-    user = await db.exec(statement)
-    user = user.first()
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
     
     if user is None:
         raise credentials_exception
@@ -74,7 +73,7 @@ async def login(
     }
     ```
     """
-    user = authenticate_user(db, form_data.username, form_data.password)
+    user = await authenticate_user_async(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -140,8 +139,8 @@ async def create_user(
         )
     
     # Check if user already exists
-    from app.core.security import get_user_by_email
-    existing_user = get_user_by_email(db, user_data.email)
+    from app.core.security import get_user_by_email_async
+    existing_user = await get_user_by_email_async(db, user_data.email)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

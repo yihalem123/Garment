@@ -35,8 +35,8 @@ async def get_returns(
     ```
     """
     statement = select(Return).offset(skip).limit(limit).order_by(Return.created_at.desc())
-    returns = await db.exec(statement)
-    return returns.all()
+    result = await db.execute(statement)
+    return result.scalars().all()
 
 
 @router.get("/{return_id}", response_model=ReturnResponse)
@@ -49,8 +49,8 @@ async def get_return(
     Get a specific return by ID
     """
     statement = select(Return).where(Return.id == return_id)
-    return_item = await db.exec(statement)
-    return_item = return_item.first()
+    result = await db.execute(statement)
+    return_item = result.scalar_one_or_none()
     
     if not return_item:
         raise HTTPException(
@@ -93,8 +93,9 @@ async def create_return(
     async with db.begin():
         # Check if return number already exists
         statement = select(Return).where(Return.return_number == return_data.return_number)
-        existing_return = await db.exec(statement)
-        if existing_return.first():
+        result = await db.execute(statement)
+        existing_return = result.scalar_one_or_none()
+        if existing_return:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Return with this number already exists"
@@ -124,8 +125,9 @@ async def create_return(
         if return_data.sale_id:
             from app.models import Sale
             statement = select(Sale).where(Sale.id == return_data.sale_id)
-            sale = await db.exec(statement)
-            sale = sale.first()
+            result = await db.execute(statement)
+            sale = result.scalar_one_or_none()
+            # sale is already a single object from scalar_one_or_none()
             if sale:
                 shop_id = sale.shop_id
         
@@ -137,8 +139,9 @@ async def create_return(
                 StockItem.item_type == ItemType.PRODUCT
             )
         )
-        stock_item = await db.exec(statement)
-        stock_item = stock_item.first()
+        result = await db.execute(statement)
+        stock_item = result.scalar_one_or_none()
+        # stock_item is already a single object from scalar_one_or_none()
         
         if not stock_item:
             # Create new stock item

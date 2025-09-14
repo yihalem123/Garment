@@ -6,6 +6,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_session
 from app.models import (
@@ -34,9 +35,11 @@ async def get_purchases(
          -H "Authorization: Bearer <token>"
     ```
     """
-    statement = select(Purchase).offset(skip).limit(limit).order_by(Purchase.created_at.desc())
-    purchases = await db.exec(statement)
-    return purchases.all()
+    statement = select(Purchase).options(
+        selectinload(Purchase.purchase_lines)
+    ).offset(skip).limit(limit).order_by(Purchase.created_at.desc())
+    result = await db.execute(statement)
+    return result.scalars().all()
 
 
 @router.get("/{purchase_id}", response_model=PurchaseResponse)
@@ -48,9 +51,11 @@ async def get_purchase(
     """
     Get a specific purchase by ID
     """
-    statement = select(Purchase).where(Purchase.id == purchase_id)
-    purchase = await db.exec(statement)
-    purchase = purchase.first()
+    statement = select(Purchase).options(
+        selectinload(Purchase.purchase_lines)
+    ).where(Purchase.id == purchase_id)
+    result = await db.execute(statement)
+    purchase = result.scalar_one_or_none()
     
     if not purchase:
         raise HTTPException(
@@ -98,74 +103,81 @@ async def create_purchase(
     }
     ```
     """
-    async with db.begin():
-        # Calculate total amount
-        total_amount = sum(
-            line.quantity * line.unit_price 
-            for line in purchase_data.purchase_lines
+    # Transaction handled by session dependency
+    # Calculate total amount
+    total_amount = sum(
+        line.quantity * line.unit_price 
+        for line in purchase_data.purchase_lines
+    )
+    
+    # Create purchase
+    db_purchase = Purchase(
+        supplier_name=purchase_data.supplier_name,
+        supplier_invoice=purchase_data.supplier_invoice,
+        total_amount=total_amount,
+        purchase_date=purchase_data.purchase_date,
+        notes=purchase_data.notes,
+        status=PurchaseStatus.RECEIVED  # Assume received immediately
+    )
+    
+    db.add(db_purchase)
+    await db.flush()  # Get the ID
+    
+    # Create purchase lines and update stock
+    for line_data in purchase_data.purchase_lines:
+        # Create purchase line
+        purchase_line = PurchaseLine(
+            purchase_id=db_purchase.id,
+            raw_material_id=line_data.raw_material_id,
+            quantity=line_data.quantity,
+            unit_price=line_data.unit_price,
+            total_price=line_data.quantity * line_data.unit_price
         )
+        db.add(purchase_line)
         
-        # Create purchase
-        db_purchase = Purchase(
-            supplier_name=purchase_data.supplier_name,
-            supplier_invoice=purchase_data.supplier_invoice,
-            total_amount=total_amount,
-            purchase_date=purchase_data.purchase_date,
-            notes=purchase_data.notes,
-            status=PurchaseStatus.RECEIVED  # Assume received immediately
+        # Find or create stock item
+        statement = select(StockItem).where(
+            StockItem.raw_material_id == line_data.raw_material_id,
+            StockItem.item_type == ItemType.RAW_MATERIAL
         )
+        result = await db.execute(statement)
+        stock_item = result.scalar_one_or_none()
         
-        db.add(db_purchase)
-        await db.flush()  # Get the ID
-        
-        # Create purchase lines and update stock
-        for line_data in purchase_data.purchase_lines:
-            # Create purchase line
-            purchase_line = PurchaseLine(
-                purchase_id=db_purchase.id,
-                raw_material_id=line_data.raw_material_id,
-                quantity=line_data.quantity,
-                unit_price=line_data.unit_price,
-                total_price=line_data.quantity * line_data.unit_price
-            )
-            db.add(purchase_line)
-            
-            # Find or create stock item
-            statement = select(StockItem).where(
-                StockItem.raw_material_id == line_data.raw_material_id,
-                StockItem.item_type == ItemType.RAW_MATERIAL
-            )
-            stock_item = await db.exec(statement)
-            stock_item = stock_item.first()
-            
-            if not stock_item:
-                # Create new stock item (assuming shop_id=1 for main warehouse)
-                stock_item = StockItem(
-                    shop_id=1,  # Main warehouse
-                    item_type=ItemType.RAW_MATERIAL,
-                    raw_material_id=line_data.raw_material_id,
-                    quantity=line_data.quantity,
-                    reserved_quantity=Decimal('0'),
-                    min_stock_level=Decimal('10')
-                )
-                db.add(stock_item)
-            else:
-                # Update existing stock
-                stock_item.quantity += line_data.quantity
-            
-            # Create stock movement
-            stock_movement = StockMovement(
+        if not stock_item:
+            # Create new stock item (assuming shop_id=1 for main warehouse)
+            stock_item = StockItem(
                 shop_id=1,  # Main warehouse
                 item_type=ItemType.RAW_MATERIAL,
                 raw_material_id=line_data.raw_material_id,
                 quantity=line_data.quantity,
-                reason=MovementReason.PURCHASE,
-                reference_id=db_purchase.id,
-                reference_type="purchase"
+                reserved_quantity=Decimal('0'),
+                min_stock_level=Decimal('10')
             )
-            db.add(stock_movement)
+            db.add(stock_item)
+        else:
+            # Update existing stock
+            stock_item.quantity += line_data.quantity
         
-        await db.commit()
-        await db.refresh(db_purchase)
+        # Create stock movement
+        stock_movement = StockMovement(
+            shop_id=1,  # Main warehouse
+            item_type=ItemType.RAW_MATERIAL,
+            raw_material_id=line_data.raw_material_id,
+            quantity=line_data.quantity,
+            reason=MovementReason.PURCHASE,
+            reference_id=db_purchase.id,
+            reference_type="purchase"
+        )
+        db.add(stock_movement)
     
-    return db_purchase
+    await db.commit()
+    await db.refresh(db_purchase)
+    
+    # Eager load relationships for response serialization
+    statement = select(Purchase).options(
+        selectinload(Purchase.purchase_lines)
+    ).where(Purchase.id == db_purchase.id)
+    result = await db.execute(statement)
+    purchase_with_relations = result.scalar_one()
+    
+    return purchase_with_relations

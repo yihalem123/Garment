@@ -6,6 +6,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_session
 from app.models import (
@@ -35,13 +36,16 @@ async def get_sales(
          -H "Authorization: Bearer <token>"
     ```
     """
-    statement = select(Sale)
+    statement = select(Sale).options(
+        selectinload(Sale.sale_lines),
+        selectinload(Sale.payments)
+    )
     if shop_id:
         statement = statement.where(Sale.shop_id == shop_id)
     
     statement = statement.offset(skip).limit(limit).order_by(Sale.created_at.desc())
-    sales = await db.exec(statement)
-    return sales.all()
+    result = await db.execute(statement)
+    return result.scalars().all()
 
 
 @router.get("/{sale_id}", response_model=SaleResponse)
@@ -53,9 +57,12 @@ async def get_sale(
     """
     Get a specific sale by ID
     """
-    statement = select(Sale).where(Sale.id == sale_id)
-    sale = await db.exec(statement)
-    sale = sale.first()
+    statement = select(Sale).options(
+        selectinload(Sale.sale_lines),
+        selectinload(Sale.payments)
+    ).where(Sale.id == sale_id)
+    result = await db.execute(statement)
+    sale = result.scalar_one_or_none()
     
     if not sale:
         raise HTTPException(
@@ -114,119 +121,129 @@ async def create_sale(
     }
     ```
     """
-    async with db.begin():
-        # Check if sale number already exists
-        statement = select(Sale).where(Sale.sale_number == sale_data.sale_number)
-        existing_sale = await db.exec(statement)
-        if existing_sale.first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Sale with this number already exists"
-            )
-        
-        # Calculate total amount
-        total_amount = sum(
-            line.quantity * line.unit_price 
-            for line in sale_data.sale_lines
+    # Check if sale number already exists
+    statement = select(Sale).where(Sale.sale_number == sale_data.sale_number)
+    result = await db.execute(statement)
+    existing_sale = result.scalar_one_or_none()
+    if existing_sale:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Sale with this number already exists"
         )
-        final_amount = total_amount - sale_data.discount_amount
-        
-        # Validate stock availability
-        for line_data in sale_data.sale_lines:
-            statement = select(StockItem).where(
-                and_(
-                    StockItem.shop_id == sale_data.shop_id,
-                    StockItem.product_id == line_data.product_id,
-                    StockItem.item_type == ItemType.PRODUCT
-                )
-            )
-            stock_item = await db.exec(statement)
-            stock_item = stock_item.first()
-            
-            if not stock_item:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"No stock found for product ID {line_data.product_id} at shop {sale_data.shop_id}"
-                )
-            
-            available_quantity = stock_item.quantity - stock_item.reserved_quantity
-            if available_quantity < line_data.quantity:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Insufficient stock for product ID {line_data.product_id}. "
-                           f"Available: {available_quantity}, Required: {line_data.quantity}"
-                )
-        
-        # Create sale
-        db_sale = Sale(
-            sale_number=sale_data.sale_number,
-            shop_id=sale_data.shop_id,
-            customer_name=sale_data.customer_name,
-            customer_phone=sale_data.customer_phone,
-            total_amount=total_amount,
-            discount_amount=sale_data.discount_amount,
-            final_amount=final_amount,
-            sale_date=sale_data.sale_date,
-            notes=sale_data.notes,
-            status=SaleStatus.COMPLETED
-        )
-        
-        db.add(db_sale)
-        await db.flush()  # Get the ID
-        
-        # Create sale lines and update stock
-        for line_data in sale_data.sale_lines:
-            # Create sale line
-            sale_line = SaleLine(
-                sale_id=db_sale.id,
-                product_id=line_data.product_id,
-                quantity=line_data.quantity,
-                unit_price=line_data.unit_price,
-                total_price=line_data.quantity * line_data.unit_price
-            )
-            db.add(sale_line)
-            
-            # Deduct stock
-            statement = select(StockItem).where(
-                and_(
-                    StockItem.shop_id == sale_data.shop_id,
-                    StockItem.product_id == line_data.product_id,
-                    StockItem.item_type == ItemType.PRODUCT
-                )
-            )
-            stock_item = await db.exec(statement)
-            stock_item = stock_item.first()
-            
-            stock_item.quantity -= line_data.quantity
-            
-            # Create stock movement
-            stock_movement = StockMovement(
-                shop_id=sale_data.shop_id,
-                item_type=ItemType.PRODUCT,
-                product_id=line_data.product_id,
-                quantity=-line_data.quantity,  # Negative for deduction
-                reason=MovementReason.SALE,
-                reference_id=db_sale.id,
-                reference_type="sale"
-            )
-            db.add(stock_movement)
-        
-        # Create payments if provided
-        # Note: Payment system supports only cash and bank transfers
-        # No POS integration - all payment details are text-based entries
-        if sale_data.payments:
-            for payment_data in sale_data.payments:
-                payment = Payment(
-                    sale_id=db_sale.id,
-                    amount=payment_data.amount,
-                    payment_method=PaymentMethod(payment_data.payment_method),
-                    payment_date=payment_data.payment_date,
-                    reference=payment_data.reference,  # Receipt number for cash, transaction ref for bank transfer
-                    notes=payment_data.notes
-                )
-                db.add(payment)
-        
-        await db.commit()
-        await db.refresh(db_sale)
     
-    return db_sale
+    # Calculate total amount
+    total_amount = sum(
+        line.quantity * line.unit_price 
+        for line in sale_data.sale_lines
+    )
+    final_amount = total_amount - sale_data.discount_amount
+    
+    # Validate stock availability
+    for line_data in sale_data.sale_lines:
+        statement = select(StockItem).where(
+            and_(
+                StockItem.shop_id == sale_data.shop_id,
+                StockItem.product_id == line_data.product_id,
+                StockItem.item_type == ItemType.PRODUCT
+            )
+        )
+        result = await db.execute(statement)
+        stock_item = result.scalar_one_or_none()
+        # stock_item is already a single object from scalar_one_or_none()
+        
+        if not stock_item:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"No stock found for product ID {line_data.product_id} at shop {sale_data.shop_id}"
+            )
+        
+        available_quantity = stock_item.quantity - stock_item.reserved_quantity
+        if available_quantity < line_data.quantity:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Insufficient stock for product ID {line_data.product_id}. "
+                       f"Available: {available_quantity}, Required: {line_data.quantity}"
+            )
+    
+    # Create sale
+    db_sale = Sale(
+        sale_number=sale_data.sale_number,
+        shop_id=sale_data.shop_id,
+        customer_name=sale_data.customer_name,
+        customer_phone=sale_data.customer_phone,
+        total_amount=total_amount,
+        discount_amount=sale_data.discount_amount,
+        final_amount=final_amount,
+        sale_date=sale_data.sale_date,
+        notes=sale_data.notes,
+        status=SaleStatus.COMPLETED
+    )
+    
+    db.add(db_sale)
+    await db.flush()  # Get the ID
+    
+    # Create sale lines and update stock
+    for line_data in sale_data.sale_lines:
+        # Create sale line
+        sale_line = SaleLine(
+            sale_id=db_sale.id,
+            product_id=line_data.product_id,
+            quantity=line_data.quantity,
+            unit_price=line_data.unit_price,
+            total_price=line_data.quantity * line_data.unit_price
+        )
+        db.add(sale_line)
+        
+        # Deduct stock
+        statement = select(StockItem).where(
+            and_(
+                StockItem.shop_id == sale_data.shop_id,
+                StockItem.product_id == line_data.product_id,
+                StockItem.item_type == ItemType.PRODUCT
+            )
+        )
+        result = await db.execute(statement)
+        stock_item = result.scalar_one_or_none()
+        # stock_item is already a single object from scalar_one_or_none()
+        
+        stock_item.quantity -= line_data.quantity
+        
+        # Create stock movement
+        stock_movement = StockMovement(
+            shop_id=sale_data.shop_id,
+            item_type=ItemType.PRODUCT,
+            product_id=line_data.product_id,
+            quantity=-line_data.quantity,  # Negative for deduction
+            reason=MovementReason.SALE,
+            reference_id=db_sale.id,
+            reference_type="sale"
+        )
+        db.add(stock_movement)
+    
+    # Create payments if provided
+    # Note: Payment system supports only cash and bank transfers
+    # No POS integration - all payment details are text-based entries
+    if sale_data.payments:
+        for payment_data in sale_data.payments:
+            payment = Payment(
+                sale_id=db_sale.id,
+                amount=payment_data.amount,
+                payment_method=PaymentMethod(payment_data.payment_method),
+                payment_date=payment_data.payment_date,
+                reference=payment_data.reference,  # Receipt number for cash, transaction ref for bank transfer
+                notes=payment_data.notes
+            )
+            db.add(payment)
+    
+    await db.commit()
+    await db.refresh(db_sale)
+    
+    # Eager load relationships for response serialization
+    statement = select(Sale).options(
+        selectinload(Sale.sale_lines),
+        selectinload(Sale.payments)
+    ).where(Sale.id == db_sale.id)
+    result = await db.execute(statement)
+    sale_with_relations = result.scalar_one()
+    
+    return sale_with_relations

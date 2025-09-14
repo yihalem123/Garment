@@ -63,8 +63,8 @@ async def get_profit_loss_statement(
     # REVENUE SECTION
     # Total revenue
     total_revenue_query = select(func.sum(Sale.final_amount)).where(sales_filter)
-    total_revenue_result = await db.exec(total_revenue_query)
-    total_revenue = total_revenue_result.first() or 0
+    total_revenue_result = await db.execute(total_revenue_query)
+    total_revenue = total_revenue_result.scalar_one_or_none() or 0
     
     # Revenue by payment method
     revenue_by_payment_query = select(
@@ -74,7 +74,7 @@ async def get_profit_loss_statement(
      .where(sales_filter)\
      .group_by(Payment.payment_method)
     
-    revenue_by_payment_result = await db.exec(revenue_by_payment_query)
+    revenue_by_payment_result = await db.execute(revenue_by_payment_query)
     revenue_by_payment = revenue_by_payment_result.all()
     
     # Revenue by shop
@@ -84,13 +84,13 @@ async def get_profit_loss_statement(
     ).where(sales_filter)\
      .group_by(Sale.shop_id)
     
-    revenue_by_shop_result = await db.exec(revenue_by_shop_query)
-    revenue_by_shop = revenue_by_shop_result.all()
+    revenue_by_shop_result = await db.execute(revenue_by_shop_query)
+    revenue_by_shop = revenue_by_shop_result.scalars().all()
     
     # Get shop names
     shops_query = select(Shop)
-    shops = await db.exec(shops_query)
-    shops_list = shops.all()
+    shops = await db.execute(shops_query)
+    shops_list = shops.scalars().all()
     shop_dict = {shop.id: shop.name for shop in shops_list}
     
     # COST OF GOODS SOLD (COGS)
@@ -101,8 +101,8 @@ async def get_profit_loss_statement(
      .join(Sale, SaleLine.sale_id == Sale.id)\
      .where(sales_filter)
     
-    cogs_result = await db.exec(cogs_query)
-    total_cogs = cogs_result.first() or 0
+    cogs_result = await db.execute(cogs_query)
+    total_cogs = cogs_result.scalar_one_or_none() or 0
     
     # OPERATING EXPENSES
     # Raw material purchases
@@ -112,8 +112,8 @@ async def get_profit_loss_statement(
     )
     
     purchase_costs_query = select(func.sum(Purchase.total_amount)).where(purchase_filter)
-    purchase_costs_result = await db.exec(purchase_costs_query)
-    total_purchase_costs = purchase_costs_result.first() or 0
+    purchase_costs_result = await db.execute(purchase_costs_query)
+    total_purchase_costs = purchase_costs_result.scalar_one_or_none() or 0
     
     # Production costs
     production_filter = and_(
@@ -127,7 +127,7 @@ async def get_profit_loss_statement(
         func.sum(ProductionRun.overhead_cost).label("overhead_cost")
     ).where(production_filter)
     
-    production_costs_result = await db.exec(production_costs_query)
+    production_costs_result = await db.execute(production_costs_query)
     production_costs = production_costs_result.first()
     
     total_labor_cost = production_costs.labor_cost or 0
@@ -225,15 +225,15 @@ async def get_cash_flow_statement(
     cash_sales_query = select(func.sum(Payment.amount)).join(Sale, Payment.sale_id == Sale.id)\
         .where(and_(sales_filter, Payment.payment_method == PaymentMethod.CASH))
     
-    cash_sales_result = await db.exec(cash_sales_query)
-    cash_from_sales = cash_sales_result.first() or 0
+    cash_sales_result = await db.execute(cash_sales_query)
+    cash_from_sales = cash_sales_result.scalar_one_or_none() or 0
     
     # Bank transfer sales
     bank_transfer_sales_query = select(func.sum(Payment.amount)).join(Sale, Payment.sale_id == Sale.id)\
         .where(and_(sales_filter, Payment.payment_method == PaymentMethod.BANK_TRANSFER))
     
-    bank_transfer_sales_result = await db.exec(bank_transfer_sales_query)
-    bank_transfer_from_sales = bank_transfer_sales_result.first() or 0
+    bank_transfer_sales_result = await db.execute(bank_transfer_sales_query)
+    bank_transfer_from_sales = bank_transfer_sales_result.scalar_one_or_none() or 0
     
     # Cash paid for purchases
     purchase_filter = and_(
@@ -242,8 +242,8 @@ async def get_cash_flow_statement(
     )
     
     cash_paid_for_purchases_query = select(func.sum(Purchase.total_amount)).where(purchase_filter)
-    cash_paid_for_purchases_result = await db.exec(cash_paid_for_purchases_query)
-    cash_paid_for_purchases = cash_paid_for_purchases_result.first() or 0
+    cash_paid_for_purchases_result = await db.execute(cash_paid_for_purchases_query)
+    cash_paid_for_purchases = cash_paid_for_purchases_result.scalar_one_or_none() or 0
     
     # Cash paid for production
     production_filter = and_(
@@ -256,8 +256,8 @@ async def get_cash_flow_statement(
         func.sum(ProductionRun.labor_cost + ProductionRun.overhead_cost)
     ).where(production_filter)
     
-    production_cash_result = await db.exec(production_cash_query)
-    cash_paid_for_production = production_cash_result.first() or 0
+    production_cash_result = await db.execute(production_cash_query)
+    cash_paid_for_production = production_cash_result.scalar_one_or_none() or 0
     
     # Calculate operating cash flow
     operating_cash_flow = cash_from_sales + bank_transfer_from_sales - cash_paid_for_purchases - cash_paid_for_production
@@ -334,8 +334,8 @@ async def get_balance_sheet(
     ).outerjoin(Product, StockItem.product_id == Product.id)\
      .outerjoin(RawMaterial, StockItem.raw_material_id == RawMaterial.id)
     
-    inventory_result = await db.exec(inventory_query)
-    inventory_value = inventory_result.first() or 0
+    inventory_result = await db.execute(inventory_query)
+    inventory_value = inventory_result.scalar_one_or_none() or 0
     
     # Cash and bank balances (simplified - based on recent payments)
     cash_balance_query = select(func.sum(Payment.amount)).where(
@@ -352,11 +352,11 @@ async def get_balance_sheet(
         )
     )
     
-    cash_balance_result = await db.exec(cash_balance_query)
-    bank_balance_result = await db.exec(bank_balance_query)
+    cash_balance_result = await db.execute(cash_balance_query)
+    bank_balance_result = await db.execute(bank_balance_query)
     
-    cash_balance = cash_balance_result.first() or 0
-    bank_balance = bank_balance_result.first() or 0
+    cash_balance = cash_balance_result.scalar_one_or_none() or 0
+    bank_balance = bank_balance_result.scalar_one_or_none() or 0
     
     # Accounts receivable (simplified - based on recent sales without payments)
     # This is a simplified calculation
@@ -449,8 +449,8 @@ async def get_financial_ratios(
     
     # Revenue and costs
     revenue_query = select(func.sum(Sale.final_amount)).where(sales_filter)
-    revenue_result = await db.exec(revenue_query)
-    revenue = revenue_result.first() or 0
+    revenue_result = await db.execute(revenue_query)
+    revenue = revenue_result.scalar_one_or_none() or 0
     
     # COGS
     cogs_query = select(
@@ -459,15 +459,15 @@ async def get_financial_ratios(
      .join(Sale, SaleLine.sale_id == Sale.id)\
      .where(sales_filter)
     
-    cogs_result = await db.exec(cogs_query)
-    cogs = cogs_result.first() or 0
+    cogs_result = await db.execute(cogs_query)
+    cogs = cogs_result.scalar_one_or_none() or 0
     
     # Operating expenses
     purchase_costs_query = select(func.sum(Purchase.total_amount)).where(
         Purchase.purchase_date >= start_date
     )
-    purchase_costs_result = await db.exec(purchase_costs_query)
-    purchase_costs = purchase_costs_result.first() or 0
+    purchase_costs_result = await db.execute(purchase_costs_query)
+    purchase_costs = purchase_costs_result.scalar_one_or_none() or 0
     
     production_costs_query = select(
         func.sum(ProductionRun.labor_cost + ProductionRun.overhead_cost)
@@ -475,7 +475,7 @@ async def get_financial_ratios(
         ProductionRun.end_date >= start_date,
         ProductionRun.status == ProductionStatus.COMPLETED
     ))
-    production_costs_result = await db.exec(production_costs_query)
+    production_costs_result = await db.execute(production_costs_query)
     production_costs = production_costs_result.first() or 0
     
     total_operating_expenses = purchase_costs + production_costs
@@ -494,15 +494,15 @@ async def get_financial_ratios(
     avg_inventory_query = select(func.avg(StockItem.quantity)).where(
         StockItem.item_type == ItemType.PRODUCT
     )
-    avg_inventory_result = await db.exec(avg_inventory_query)
-    avg_inventory = avg_inventory_result.first() or 1
+    avg_inventory_result = await db.execute(avg_inventory_query)
+    avg_inventory = avg_inventory_result.scalar_one_or_none() or 1
     
     inventory_turnover = cogs / avg_inventory if avg_inventory > 0 else 0
     
     # Sales per transaction
     transaction_count_query = select(func.count(Sale.id)).where(sales_filter)
-    transaction_count_result = await db.exec(transaction_count_query)
-    transaction_count = transaction_count_result.first() or 1
+    transaction_count_result = await db.execute(transaction_count_query)
+    transaction_count = transaction_count_result.scalar_one_or_none() or 1
     
     sales_per_transaction = revenue / transaction_count
     

@@ -37,8 +37,8 @@ async def get_raw_materials(
         statement = statement.where(RawMaterial.is_active == is_active)
     
     statement = statement.offset(skip).limit(limit)
-    raw_materials = await db.exec(statement)
-    return raw_materials.all()
+    result = await db.execute(statement)
+    return result.scalars().all()
 
 
 @router.get("/{raw_material_id}", response_model=RawMaterialResponse)
@@ -64,8 +64,8 @@ async def get_raw_material(
     ```
     """
     statement = select(RawMaterial).where(RawMaterial.id == raw_material_id)
-    raw_material = await db.exec(statement)
-    raw_material = raw_material.first()
+    result = await db.execute(statement)
+    raw_material = result.scalar_one_or_none()
     
     if not raw_material:
         raise HTTPException(
@@ -98,8 +98,9 @@ async def create_raw_material(
     """
     # Check if SKU already exists
     statement = select(RawMaterial).where(RawMaterial.sku == raw_material_data.sku)
-    existing_raw_material = await db.exec(statement)
-    if existing_raw_material.first():
+    result = await db.execute(statement)
+    existing_raw_material = result.scalar_one_or_none()
+    if existing_raw_material:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Raw material with this SKU already exists"
@@ -124,8 +125,8 @@ async def update_raw_material(
     Update a raw material
     """
     statement = select(RawMaterial).where(RawMaterial.id == raw_material_id)
-    raw_material = await db.exec(statement)
-    raw_material = raw_material.first()
+    result = await db.execute(statement)
+    raw_material = result.scalar_one_or_none()
     
     if not raw_material:
         raise HTTPException(
@@ -136,8 +137,8 @@ async def update_raw_material(
     # Check if new SKU already exists (if provided)
     if raw_material_data.sku and raw_material_data.sku != raw_material.sku:
         statement = select(RawMaterial).where(RawMaterial.sku == raw_material_data.sku)
-        existing_raw_material = await db.exec(statement)
-        if existing_raw_material.first():
+        existing_raw_material = await db.execute(statement)
+        if existing_raw_material:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Raw material with this SKU already exists"
@@ -164,8 +165,8 @@ async def delete_raw_material(
     Delete a raw material (soft delete by setting is_active=False)
     """
     statement = select(RawMaterial).where(RawMaterial.id == raw_material_id)
-    raw_material = await db.exec(statement)
-    raw_material = raw_material.first()
+    result = await db.execute(statement)
+    raw_material = result.scalar_one_or_none()
     
     if not raw_material:
         raise HTTPException(

@@ -69,7 +69,7 @@ async def get_key_performance_indicators(
         func.min(Sale.final_amount).label("min_transaction_value")
     ).where(sales_filter)
     
-    sales_kpis_result = await db.exec(sales_kpis_query)
+    sales_kpis_result = await db.execute(sales_kpis_query)
     sales_kpis = sales_kpis_result.first()
     
     # Daily sales trend
@@ -81,8 +81,8 @@ async def get_key_performance_indicators(
      .group_by(Sale.sale_date)\
      .order_by(Sale.sale_date)
     
-    daily_sales_result = await db.exec(daily_sales_query)
-    daily_sales = daily_sales_result.all()
+    daily_sales_result = await db.execute(daily_sales_query)
+    daily_sales = daily_sales_result.scalars().all()
     
     # Inventory KPIs
     inventory_kpis_query = select(
@@ -99,7 +99,7 @@ async def get_key_performance_indicators(
     if shop_id:
         inventory_kpis_query = inventory_kpis_query.where(StockItem.shop_id == shop_id)
     
-    inventory_kpis_result = await db.exec(inventory_kpis_query)
+    inventory_kpis_result = await db.execute(inventory_kpis_query)
     inventory_kpis = inventory_kpis_result.first()
     
     # Production KPIs
@@ -111,7 +111,7 @@ async def get_key_performance_indicators(
         func.avg(ProductionRun.total_cost).label("avg_production_cost")
     ).where(ProductionRun.status == ProductionStatus.COMPLETED)
     
-    production_kpis_result = await db.exec(production_kpis_query)
+    production_kpis_result = await db.execute(production_kpis_query)
     production_kpis = production_kpis_result.first()
     
     # Calculate efficiency metrics
@@ -123,8 +123,8 @@ async def get_key_performance_indicators(
     purchase_cost_query = select(func.sum(Purchase.total_amount)).where(
         Purchase.purchase_date >= start_date
     )
-    purchase_cost_result = await db.exec(purchase_cost_query)
-    total_purchase_cost = purchase_cost_result.first() or 0
+    purchase_cost_result = await db.execute(purchase_cost_query)
+    total_purchase_cost = purchase_cost_result.scalar_one_or_none() or 0
     
     # Calculate profit margins
     gross_profit = float(sales_kpis.total_revenue or 0) - float(total_purchase_cost)
@@ -209,13 +209,14 @@ async def get_business_trends(
         else:  # monthly
             start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
     
-    # Build date grouping based on period
+    # Build date grouping based on period (SQLite compatible)
     if period == "daily":
-        date_group = Sale.sale_date
+        date_group = func.date(Sale.sale_date)
     elif period == "weekly":
-        date_group = func.date_trunc('week', Sale.sale_date)
+        # SQLite doesn't have week truncation, use year-week format
+        date_group = func.strftime('%Y-%W', Sale.sale_date)
     else:  # monthly
-        date_group = func.date_trunc('month', Sale.sale_date)
+        date_group = func.strftime('%Y-%m', Sale.sale_date)
     
     # Sales trends
     sales_trends_query = select(
@@ -234,25 +235,25 @@ async def get_business_trends(
     
     sales_trends_query = sales_trends_query.group_by(date_group).order_by(date_group)
     
-    sales_trends_result = await db.exec(sales_trends_query)
-    sales_trends = sales_trends_result.all()
+    sales_trends_result = await db.execute(sales_trends_query)
+    sales_trends = sales_trends_result.scalars().all()
     
     # Purchase trends
     purchase_trends_query = select(
-        func.date_trunc(period[:-2], Purchase.purchase_date).label("period"),
+        date_group.label("period"),
         func.count(Purchase.id).label("purchase_count"),
         func.sum(Purchase.total_amount).label("purchase_amount")
     ).where(and_(
         Purchase.purchase_date >= start_date,
         Purchase.purchase_date <= end_date
-    )).group_by(func.date_trunc(period[:-2], Purchase.purchase_date)).order_by("period")
+    )).group_by(date_group).order_by("period")
     
-    purchase_trends_result = await db.exec(purchase_trends_query)
-    purchase_trends = purchase_trends_result.all()
+    purchase_trends_result = await db.execute(purchase_trends_query)
+    purchase_trends = purchase_trends_result.scalars().all()
     
     # Production trends
     production_trends_query = select(
-        func.date_trunc(period[:-2], ProductionRun.end_date).label("period"),
+        date_group.label("period"),
         func.count(ProductionRun.id).label("production_runs"),
         func.sum(ProductionRun.planned_quantity).label("planned_quantity"),
         func.sum(ProductionRun.actual_quantity).label("actual_quantity"),
@@ -261,10 +262,10 @@ async def get_business_trends(
         ProductionRun.end_date >= start_date,
         ProductionRun.end_date <= end_date,
         ProductionRun.status == ProductionStatus.COMPLETED
-    )).group_by(func.date_trunc(period[:-2], ProductionRun.end_date)).order_by("period")
+    )).group_by(date_group).order_by("period")
     
-    production_trends_result = await db.exec(production_trends_query)
-    production_trends = production_trends_result.all()
+    production_trends_result = await db.execute(production_trends_query)
+    production_trends = production_trends_result.scalars().all()
     
     return {
         "period": period,
@@ -361,8 +362,8 @@ async def get_comparative_analysis(
             func.avg(Sale.final_amount).label("avg_transaction_value")
         ).where(sales_filter)
         
-        sales_result = await db.exec(sales_query)
-        sales_data = sales_result.first()
+        sales_result = await db.execute(sales_query)
+        sales_data = sales_result.scalar_one_or_none()
         
         # Purchase data for this period
         purchase_query = select(
@@ -373,8 +374,8 @@ async def get_comparative_analysis(
             Purchase.purchase_date < period_end.strftime("%Y-%m-%d")
         ))
         
-        purchase_result = await db.exec(purchase_query)
-        purchase_data = purchase_result.first()
+        purchase_result = await db.execute(purchase_query)
+        purchase_data = purchase_result.scalar_one_or_none()
         
         comparison_data.append({
             "period": period_start.strftime("%Y-%m-%d"),
@@ -447,11 +448,11 @@ async def get_business_health_score(
     )
     total_stock_query = select(func.count(StockItem.id))
     
-    low_stock_result = await db.exec(low_stock_query)
-    total_stock_result = await db.exec(total_stock_query)
+    low_stock_result = await db.execute(low_stock_query)
+    total_stock_result = await db.execute(total_stock_query)
     
-    low_stock_count = low_stock_result.first() or 0
-    total_stock_count = total_stock_result.first() or 1
+    low_stock_count = low_stock_result.scalar_one_or_none() or 0
+    total_stock_count = total_stock_result.scalar_one_or_none() or 1
     
     inventory_health = ((total_stock_count - low_stock_count) / total_stock_count) * 100
     health_metrics["inventory_health"] = inventory_health
@@ -466,8 +467,8 @@ async def get_business_health_score(
             Sale.status == SaleStatus.COMPLETED
         )
     )
-    recent_sales_result = await db.exec(recent_sales_query)
-    recent_sales_count = recent_sales_result.first() or 0
+    recent_sales_result = await db.execute(recent_sales_query)
+    recent_sales_count = recent_sales_result.scalar_one_or_none() or 0
     
     # Assume healthy if more than 5 sales per week
     sales_health = min(100, (recent_sales_count / 5) * 100)
@@ -482,12 +483,12 @@ async def get_business_health_score(
         func.sum(ProductionRun.planned_quantity).label("planned")
     ).where(ProductionRun.status == ProductionStatus.COMPLETED)
     
-    production_result = await db.exec(production_efficiency_query)
+    production_result = await db.execute(production_efficiency_query)
     production_data = production_result.first()
     
     production_efficiency = 0
-    if production_data.planned and production_data.planned > 0:
-        production_efficiency = (production_data.actual / production_data.planned) * 100
+    if production_data and production_data.planned and production_data.planned > 0:
+        production_efficiency = float((production_data.actual / production_data.planned) * 100)
     
     health_metrics["production_health"] = production_efficiency
     
@@ -506,11 +507,11 @@ async def get_business_health_score(
         Purchase.purchase_date >= (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
     )
     
-    revenue_result = await db.exec(revenue_query)
-    cost_result = await db.exec(cost_query)
+    revenue_result = await db.execute(revenue_query)
+    cost_result = await db.execute(cost_query)
     
-    revenue = revenue_result.first() or 0
-    costs = cost_result.first() or 0
+    revenue = revenue_result.scalar_one_or_none() or 0
+    costs = cost_result.scalar_one_or_none() or 0
     
     profit_margin = 0
     if revenue > 0:

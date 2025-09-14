@@ -1,488 +1,797 @@
-# Garment Business Management System
+# Garment Business Management System API
 
-A comprehensive REST API for managing garment business operations including inventory, production, sales, and reporting.
+A comprehensive REST API for managing garment manufacturing business operations including purchases, production, transfers, sales, inventory, and analytics.
 
-## Features
-
-- **Authentication & Authorization**: JWT-based authentication with role-based access control (admin, shop_manager, staff)
-- **Inventory Management**: Track stock levels, movements, and adjustments across multiple shops
-- **Purchase Management**: Handle raw material purchases with automatic stock updates
-- **Production Management**: Manage production runs with material consumption tracking
-- **Transfer Management**: Transfer products between shops with stock reservation
-- **Sales Management**: Process sales with real-time stock validation and simple payment tracking (cash/bank transfer)
-- **Returns Management**: Handle product returns with stock adjustments
-- **Business Analytics**: Comprehensive dashboard with KPIs, trends, and performance metrics
-- **Human Resource Management**: Employee management, performance tracking, and workforce analytics
-- **Financial Reporting**: Profit & Loss statements, cash flow analysis, balance sheets, and financial ratios
-- **Business Intelligence**: Advanced analytics, comparative analysis, and business health scoring
-- **Real-time Updates**: WebSocket support for live notifications
-- **Background Jobs**: Celery-based task processing for notifications and reports
-- **Comprehensive Testing**: Unit and integration tests with pytest
-
-## Tech Stack
-
-- **Language**: Python 3.11+
-- **Framework**: FastAPI
-- **ORM**: SQLModel (SQLAlchemy compatible)
-- **Database**: PostgreSQL
-- **Migrations**: Alembic
-- **Authentication**: JWT (OAuth2PasswordBearer)
-- **Background Jobs**: Celery with Redis
-- **Testing**: pytest with httpx
-- **Containerization**: Docker & Docker Compose
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
+- Python 3.11+
+- SQLite (for local development)
+- Redis (for background tasks)
 
-- Docker and Docker Compose
-- Python 3.11+ (for local development)
-
-### Using Docker (Recommended)
+### Installation
 
 1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd garment
-   ```
-
-2. **Start the services**
-   ```bash
-   docker-compose up -d
-   ```
-
-3. **Run database migrations**
-   ```bash
-   docker-compose exec backend alembic upgrade head
-   ```
-
-4. **Create seed data**
-   ```bash
-   docker-compose exec backend python -m app.db.seed_data
-   ```
-
-5. **Access the API**
-   - API Documentation: http://localhost:8000/docs
-   - Health Check: http://localhost:8000/health
-
-### Local Development
-
-1. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-3. **Start PostgreSQL and Redis**
-   ```bash
-   docker-compose up -d postgres redis
-   ```
-
-4. **Run migrations**
-   ```bash
-   alembic upgrade head
-   ```
-
-5. **Create seed data**
-   ```bash
-   python -m app.db.seed_data
-   ```
-
-6. **Start the application**
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-## API Documentation
-
-### Authentication
-
-All endpoints (except `/auth/login`) require authentication. Include the JWT token in the Authorization header:
-
 ```bash
-curl -H "Authorization: Bearer <your-token>" http://localhost:8000/products/
+git clone <repository-url>
+cd garment
 ```
 
-### Payment System
+2. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
 
-The system supports a simplified payment model with two payment methods:
+3. **Set up environment variables**
+```bash
+cp env.example .env
+# Edit .env with your configuration
+```
 
-- **Cash**: Physical cash payments with optional receipt number tracking
-- **Bank Transfer**: Bank transfer payments with transaction reference tracking
+4. **Run database migrations**
+```bash
+alembic upgrade head
+```
 
-No POS (Point of Sale) integration is included - all payment details are entered as text fields. The `reference` field can be used for:
-- Cash payments: Receipt numbers or cash register references
-- Bank transfers: Transaction IDs or bank reference numbers
+5. **Start the application**
+```bash
+python run.py
+```
 
-Example payment objects:
+The API will be available at `http://localhost:8000`
+
+## 📚 API Documentation
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **OpenAPI Spec**: http://localhost:8000/openapi.json
+
+## 🔐 Authentication
+
+All endpoints require authentication using JWT tokens.
+
+### Login
+```http
+POST /auth/login
+Content-Type: application/x-www-form-urlencoded
+
+username=admin@garment.com&password=admin123
+```
+
+**Response:**
 ```json
 {
-  "amount": 50.00,
-  "payment_method": "cash",
-  "payment_date": "2024-01-15",
-  "reference": "RCP-001",
-  "notes": "Cash payment received"
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
 }
 ```
 
+### Get Current User
+```http
+GET /auth/users/me
+Authorization: Bearer <token>
+```
+
+**Response:**
 ```json
 {
-  "amount": 100.00,
-  "payment_method": "bank_transfer",
-  "payment_date": "2024-01-15",
-  "reference": "TXN-123456789",
-  "notes": "Bank transfer confirmed"
+  "id": 1,
+  "email": "admin@garment.com",
+  "full_name": "System Administrator",
+  "role": "admin",
+  "is_active": true,
+  "created_at": "2024-01-01T00:00:00Z"
 }
 ```
 
-### Sample API Calls
+## 📦 Products & Raw Materials
 
-#### 1. Login
-```bash
-curl -X POST "http://localhost:8000/auth/login" \
-     -H "Content-Type: application/x-www-form-urlencoded" \
-     -d "username=admin@garment.com&password=admin123"
+### Get All Products
+```http
+GET /products/
+Authorization: Bearer <token>
 ```
 
-#### 2. Create a Purchase
-```bash
-curl -X POST "http://localhost:8000/purchases/" \
-     -H "Authorization: Bearer <token>" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "supplier_name": "Fabric Supplier Co.",
-       "supplier_invoice": "INV-001",
-       "purchase_date": "2024-01-15",
-       "purchase_lines": [
-         {
-           "raw_material_id": 1,
-           "quantity": 100.0,
-           "unit_price": 5.50
-         }
-       ]
-     }'
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "name": "T-shirt Cotton",
+    "sku": "MGF-003-mcnt",
+    "description": "Cotton T-shirt",
+    "category": "T-shirt",
+    "unit_price": 240.0,
+    "cost_price": 200.0,
+    "is_active": true,
+    "created_at": "2024-01-01T00:00:00Z"
+  }
+]
 ```
 
-#### 3. Create a Production Run
-```bash
-curl -X POST "http://localhost:8000/production/" \
-     -H "Authorization: Bearer <token>" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "run_number": "PR-2024-001",
-       "planned_quantity": 50.0,
-       "labor_cost": 200.00,
-       "overhead_cost": 100.00,
-       "start_date": "2024-01-15",
-       "production_lines": [
-         {
-           "product_id": 1,
-           "planned_quantity": 50.0
-         }
-       ]
-     }'
+### Get All Raw Materials
+```http
+GET /raw-materials/
+Authorization: Bearer <token>
 ```
 
-#### 4. Complete Production Run
-```bash
-curl -X POST "http://localhost:8000/production/1/complete" \
-     -H "Authorization: Bearer <token>"
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Dryer",
+    "description": "Fabric dryer",
+    "unit": "roll",
+    "unit_price": 750.0,
+    "supplier": "Tigist",
+    "is_active": true,
+    "created_at": "2024-01-01T00:00:00Z"
+  }
+]
 ```
 
-#### 5. Create a Sale
-```bash
-curl -X POST "http://localhost:8000/sales/" \
-     -H "Authorization: Bearer <token>" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "sale_number": "SALE-2024-001",
-       "shop_id": 2,
-       "customer_name": "John Doe",
-       "customer_phone": "+1234567890",
-       "sale_date": "2024-01-15",
-       "sale_lines": [
-         {
-           "product_id": 1,
-           "quantity": 2.0,
-           "unit_price": 25.00
-         }
-       ],
-       "payments": [
-         {
-           "amount": 50.00,
-           "payment_method": "cash",
-           "payment_date": "2024-01-15",
-           "reference": "RCP-001",
-           "notes": "Cash payment received"
-         }
-       ]
-     }'
+## 📊 Inventory Management
+
+### Get Stock Items
+```http
+GET /inventory/stocks
+Authorization: Bearer <token>
 ```
 
-#### 6. Check Stock Levels
-```bash
-curl -X GET "http://localhost:8000/inventory/stocks?shop_id=1" \
-     -H "Authorization: Bearer <token>"
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "shop_id": 1,
+    "item_type": "product",
+    "product_id": 1,
+    "raw_material_id": null,
+    "quantity": 100.0,
+    "reserved_quantity": 0.0,
+    "min_stock_level": 10.0,
+    "created_at": "2024-01-01T00:00:00Z"
+  }
+]
 ```
 
-#### 7. Transfer Products Between Shops
-```bash
-curl -X POST "http://localhost:8000/transfers/" \
-     -H "Authorization: Bearer <token>" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "transfer_number": "TR-2024-001",
-       "from_shop_id": 1,
-       "to_shop_id": 2,
-       "transfer_date": "2024-01-15",
-       "transfer_lines": [
-         {
-           "product_id": 1,
-           "quantity": 10.0,
-           "unit_cost": 25.00
-         }
-       ]
-     }'
+### Get Stock Movements
+```http
+GET /inventory/stock-movements
+Authorization: Bearer <token>
 ```
 
-#### 8. Get Business Dashboard
-```bash
-curl -X GET "http://localhost:8000/analytics/dashboard?start_date=2024-01-01&end_date=2024-01-31" \
-     -H "Authorization: Bearer <token>"
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "shop_id": 1,
+    "item_type": "product",
+    "product_id": 1,
+    "raw_material_id": null,
+    "quantity": 10.0,
+    "reason": "sale",
+    "reference_id": 1,
+    "reference_type": "sale",
+    "created_at": "2024-01-01T00:00:00Z"
+  }
+]
 ```
 
-#### 9. Get Profit & Loss Statement
-```bash
-curl -X GET "http://localhost:8000/finance/profit-loss-statement?start_date=2024-01-01&end_date=2024-01-31" \
-     -H "Authorization: Bearer <token>"
+### Adjust Stock
+```http
+POST /inventory/stocks/adjust
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "shop_id": 1,
+  "item_type": "product",
+  "product_id": 1,
+  "quantity": 50.0,
+  "reason": "adjustment",
+  "notes": "Stock adjustment"
+}
 ```
 
-#### 10. Get Key Performance Indicators
-```bash
-curl -X GET "http://localhost:8000/business-intelligence/kpis?start_date=2024-01-01&end_date=2024-01-31" \
-     -H "Authorization: Bearer <token>"
+## 🛒 Purchase Management
+
+### Create Purchase
+```http
+POST /purchases/
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "supplier_name": "Tigist Supplier",
+  "supplier_invoice": "INV-001",
+  "purchase_date": "2024-01-01",
+  "notes": "Raw material purchase",
+  "purchase_lines": [
+    {
+      "raw_material_id": 1,
+      "quantity": 10.0,
+      "unit_price": 750.0,
+      "total_price": 7500.0
+    }
+  ]
+}
 ```
 
-#### 11. Get Employee Performance
-```bash
-curl -X GET "http://localhost:8000/hr/performance?start_date=2024-01-01&end_date=2024-01-31" \
-     -H "Authorization: Bearer <token>"
+**Response:**
+```json
+{
+  "id": 1,
+  "supplier_name": "Tigist Supplier",
+  "supplier_invoice": "INV-001",
+  "status": "received",
+  "total_amount": 7500.0,
+  "purchase_date": "2024-01-01",
+  "notes": "Raw material purchase",
+  "created_at": "2024-01-01T00:00:00Z",
+  "purchase_lines": [
+    {
+      "id": 1,
+      "purchase_id": 1,
+      "raw_material_id": 1,
+      "quantity": 10.0,
+      "unit_price": 750.0,
+      "total_price": 7500.0
+    }
+  ]
+}
 ```
 
-#### 12. Get Business Health Score
-```bash
-curl -X GET "http://localhost:8000/business-intelligence/business-health" \
-     -H "Authorization: Bearer <token>"
+### Get All Purchases
+```http
+GET /purchases/
+Authorization: Bearer <token>
 ```
 
-## Environment Variables
+## 🏭 Production Management
 
-Create a `.env` file with the following variables:
+### Create Production Run
+```http
+POST /production/
+Authorization: Bearer <token>
+Content-Type: application/json
 
-```env
-# Database
-DATABASE_URL=postgresql+asyncpg://garment_user:garment_pass@localhost:5432/garment_db
-
-# Security
-SECRET_KEY=your-secret-key-change-in-production
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
-
-# Email (for notifications)
-SMTP_HOST=localhost
-SMTP_PORT=587
-SMTP_USER=your-email@example.com
-SMTP_PASSWORD=your-email-password
-SMTP_TLS=true
-
-# Application
-DEBUG=true
-ENVIRONMENT=development
-ALLOWED_HOSTS=["*"]
+{
+  "run_number": "PROD-001",
+  "planned_quantity": 100,
+  "labor_cost": 500.0,
+  "overhead_cost": 200.0,
+  "start_date": "2024-01-01",
+  "notes": "T-shirt production",
+  "production_lines": [
+    {
+      "product_id": 1,
+      "planned_quantity": 100
+    }
+  ]
+}
 ```
 
-## Testing
-
-Run the test suite:
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=app
-
-# Run specific test file
-pytest tests/test_sales.py
-
-# Run with verbose output
-pytest -v
+**Response:**
+```json
+{
+  "id": 1,
+  "run_number": "PROD-001",
+  "planned_quantity": 100,
+  "labor_cost": 500.0,
+  "overhead_cost": 200.0,
+  "status": "planned",
+  "start_date": "2024-01-01",
+  "notes": "T-shirt production",
+  "created_at": "2024-01-01T00:00:00Z",
+  "production_lines": [
+    {
+      "id": 1,
+      "production_run_id": 1,
+      "product_id": 1,
+      "planned_quantity": 100
+    }
+  ],
+  "production_consumptions": []
+}
 ```
 
-## Background Jobs
+### Complete Production Run
+```http
+POST /production/{production_run_id}/complete
+Authorization: Bearer <token>
+Content-Type: application/json
 
-The system includes several background jobs:
-
-### Low Stock Notifications
-Daily task to check for low stock items and send email notifications.
-
-### Daily Sales Reports
-Generate daily sales reports with top-selling products.
-
-### Database Cleanup
-Clean up old stock movement records to maintain performance.
-
-### Scheduling Jobs
-
-To schedule background jobs, you can use Celery Beat:
-
-```bash
-# Start Celery Beat scheduler
-celery -A app.core.celery_app beat --loglevel=info
-
-# Start Celery worker
-celery -A app.core.celery_app worker --loglevel=info
+{
+  "actual_quantities": {
+    "1": 95
+  }
+}
 ```
 
-## WebSocket Support
+## 🚚 Transfer Management
 
-Connect to the WebSocket endpoint for real-time updates:
+### Create Transfer
+```http
+POST /transfers/
+Authorization: Bearer <token>
+Content-Type: application/json
 
+{
+  "transfer_number": "TRF-001",
+  "from_shop_id": 1,
+  "to_shop_id": 2,
+  "transfer_date": "2024-01-01",
+  "notes": "Transfer to shop",
+  "transfer_lines": [
+    {
+      "product_id": 1,
+      "quantity": 50,
+      "unit_cost": 200.0,
+      "total_cost": 10000.0
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "transfer_number": "TRF-001",
+  "from_shop_id": 1,
+  "to_shop_id": 2,
+  "status": "pending",
+  "transfer_date": "2024-01-01",
+  "notes": "Transfer to shop",
+  "created_at": "2024-01-01T00:00:00Z",
+  "transfer_lines": [
+    {
+      "id": 1,
+      "transfer_id": 1,
+      "product_id": 1,
+      "quantity": 50,
+      "unit_cost": 200.0,
+      "total_cost": 10000.0
+    }
+  ]
+}
+```
+
+### Receive Transfer
+```http
+POST /transfers/{transfer_id}/receive
+Authorization: Bearer <token>
+```
+
+## 💰 Sales Management
+
+### Create Sale
+```http
+POST /sales/
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "sale_number": "SALE-001",
+  "shop_id": 2,
+  "customer_name": "John Doe",
+  "customer_phone": "1234567890",
+  "discount_amount": 0.0,
+  "sale_date": "2024-01-01",
+  "notes": "Customer purchase",
+  "sale_lines": [
+    {
+      "product_id": 1,
+      "quantity": 2,
+      "unit_price": 240.0,
+      "total_price": 480.0
+    }
+  ],
+  "payments": [
+    {
+      "amount": 480.0,
+      "payment_method": "cash",
+      "payment_date": "2024-01-01",
+      "reference": "CASH-001",
+      "notes": "Cash payment"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "sale_number": "SALE-001",
+  "shop_id": 2,
+  "customer_name": "John Doe",
+  "customer_phone": "1234567890",
+  "total_amount": 480.0,
+  "discount_amount": 0.0,
+  "final_amount": 480.0,
+  "status": "completed",
+  "sale_date": "2024-01-01",
+  "notes": "Customer purchase",
+  "created_at": "2024-01-01T00:00:00Z",
+  "sale_lines": [
+    {
+      "id": 1,
+      "sale_id": 1,
+      "product_id": 1,
+      "quantity": 2,
+      "unit_price": 240.0,
+      "total_price": 480.0
+    }
+  ],
+  "payments": [
+    {
+      "id": 1,
+      "sale_id": 1,
+      "amount": 480.0,
+      "payment_method": "cash",
+      "payment_date": "2024-01-01",
+      "reference": "CASH-001",
+      "notes": "Cash payment"
+    }
+  ]
+}
+```
+
+## 🔄 Returns Management
+
+### Get All Returns
+```http
+GET /returns/
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "sale_id": 1,
+    "return_date": "2024-01-02",
+    "reason": "defective",
+    "notes": "Product defect",
+    "created_at": "2024-01-02T00:00:00Z"
+  }
+]
+```
+
+### Create Return
+```http
+POST /returns/
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "sale_id": 1,
+  "return_date": "2024-01-02",
+  "reason": "defective",
+  "notes": "Product defect"
+}
+```
+
+## 📈 Analytics & Reporting
+
+### Dashboard Analytics
+```http
+GET /analytics/dashboard
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "total_sales": 50000.0,
+  "total_purchases": 30000.0,
+  "total_production": 1000,
+  "total_transfers": 500,
+  "low_stock_items": 5,
+  "recent_activities": [
+    {
+      "type": "sale",
+      "description": "Sale SALE-001 created",
+      "timestamp": "2024-01-01T10:00:00Z"
+    }
+  ]
+}
+```
+
+### Profit/Loss Analytics
+```http
+GET /analytics/profit-loss
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "total_revenue": 50000.0,
+  "total_costs": 35000.0,
+  "gross_profit": 15000.0,
+  "profit_margin": 30.0,
+  "monthly_data": [
+    {
+      "month": "2024-01",
+      "revenue": 50000.0,
+      "costs": 35000.0,
+      "profit": 15000.0
+    }
+  ]
+}
+```
+
+## 🧠 Business Intelligence
+
+### KPIs
+```http
+GET /business-intelligence/kpis
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "sales_kpi": {
+    "total_sales": 50000.0,
+    "sales_growth": 15.5,
+    "average_order_value": 250.0
+  },
+  "inventory_kpi": {
+    "total_products": 8,
+    "low_stock_count": 2,
+    "inventory_turnover": 4.2
+  },
+  "production_kpi": {
+    "total_production": 1000,
+    "efficiency_rate": 85.0,
+    "waste_percentage": 5.0
+  }
+}
+```
+
+### Business Health
+```http
+GET /business-intelligence/business-health
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "overall_score": 85.0,
+  "financial_health": 90.0,
+  "operational_health": 80.0,
+  "inventory_health": 85.0,
+  "recommendations": [
+    "Consider increasing production capacity",
+    "Monitor low stock items"
+  ]
+}
+```
+
+## 💼 Financial Reporting
+
+### Profit & Loss Statement
+```http
+GET /finance/profit-loss-statement
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "period": "2024-01",
+  "revenue": {
+    "total": 50000.0,
+    "by_payment_method": [
+      {
+        "payment_method": "cash",
+        "amount": 30000.0
+      },
+      {
+        "payment_method": "bank_transfer",
+        "amount": 20000.0
+      }
+    ]
+  },
+  "costs": {
+    "total": 35000.0,
+    "purchases": 25000.0,
+    "production": 8000.0,
+    "overhead": 2000.0
+  },
+  "profit": {
+    "gross_profit": 15000.0,
+    "net_profit": 12000.0,
+    "profit_margin": 30.0
+  }
+}
+```
+
+## 👥 Human Resources
+
+### Workforce Summary
+```http
+GET /hr/workforce-summary
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "total_employees": 25,
+  "by_role": {
+    "admin": 2,
+    "shop_manager": 5,
+    "staff": 18
+  },
+  "by_shop": {
+    "1": 10,
+    "2": 15
+  },
+  "recent_hires": [
+    {
+      "id": 1,
+      "full_name": "John Smith",
+      "email": "john@example.com",
+      "role": "staff",
+      "shop_id": 1,
+      "shop_name": "Main Warehouse",
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+## 🏪 Shop Management
+
+### Get All Shops
+```http
+GET /shops/
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Main Warehouse",
+    "address": "123 Main St",
+    "phone": "123-456-7890",
+    "manager_id": 1,
+    "is_active": true,
+    "created_at": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+## 🔧 Error Handling
+
+All endpoints return appropriate HTTP status codes:
+
+- `200` - Success
+- `201` - Created
+- `400` - Bad Request
+- `401` - Unauthorized
+- `404` - Not Found
+- `409` - Conflict
+- `422` - Validation Error
+- `500` - Internal Server Error
+
+### Error Response Format
+```json
+{
+  "detail": "Error message description"
+}
+```
+
+## 📝 Common Error Scenarios
+
+### Insufficient Stock
+```json
+{
+  "detail": "Insufficient stock for product ID 1. Available: 5, Required: 10"
+}
+```
+
+### Duplicate Entry
+```json
+{
+  "detail": "Sale with this number already exists"
+}
+```
+
+### Validation Error
+```json
+{
+  "detail": [
+    {
+      "loc": ["body", "quantity"],
+      "msg": "ensure this value is greater than 0",
+      "type": "value_error.number.not_gt"
+    }
+  ]
+}
+```
+
+## 🚀 Frontend Integration Examples
+
+### React/JavaScript Example
 ```javascript
-const ws = new WebSocket('ws://localhost:8000/ws');
-ws.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    console.log('Received:', data);
+// Login and get token
+const login = async (username, password) => {
+  const response = await fetch('/auth/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: `username=${username}&password=${password}`
+  });
+  const data = await response.json();
+  return data.access_token;
+};
+
+// Create a sale
+const createSale = async (token, saleData) => {
+  const response = await fetch('/sales/', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(saleData)
+  });
+  return await response.json();
 };
 ```
 
-The WebSocket broadcasts events for:
-- Stock updates
-- New sales
-- Production completions
-- Transfer updates
+### Vue.js Example
+```javascript
+// Using axios
+import axios from 'axios';
 
-## Database Schema
+const api = axios.create({
+  baseURL: 'http://localhost:8000'
+});
 
-The system includes the following main entities:
+// Add token to requests
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
-- **Users**: System users with role-based access
-- **Shops**: Physical locations/stores
-- **Products**: Finished goods
-- **Raw Materials**: Materials used in production
-- **Stock Items**: Inventory levels per shop
-- **Stock Movements**: All inventory transactions
-- **Purchases**: Raw material purchases
-- **Production Runs**: Manufacturing operations
-- **Transfers**: Inter-shop product transfers
-- **Sales**: Customer transactions
-- **Returns**: Product returns
+// Get products
+const getProducts = () => api.get('/products/');
+```
 
-## API Endpoints
+## 🔒 Security Notes
 
-### Authentication
-- `POST /auth/login` - User login
-- `GET /auth/users/me` - Get current user
-- `POST /auth/users` - Create user (admin only)
+- All endpoints require authentication
+- JWT tokens expire after 24 hours
+- Use HTTPS in production
+- Validate all input data on the frontend
+- Implement proper error handling
 
-### Products
-- `GET /products/` - List products
-- `POST /products/` - Create product
-- `GET /products/{id}` - Get product
-- `PUT /products/{id}` - Update product
-- `DELETE /products/{id}` - Delete product
+## 📞 Support
 
-### Raw Materials
-- `GET /raw-materials/` - List raw materials
-- `POST /raw-materials/` - Create raw material
-- `GET /raw-materials/{id}` - Get raw material
-- `PUT /raw-materials/{id}` - Update raw material
-- `DELETE /raw-materials/{id}` - Delete raw material
+For API support and questions:
+- Check the Swagger documentation at `/docs`
+- Review the OpenAPI specification at `/openapi.json`
+- Contact the development team
 
-### Inventory
-- `GET /inventory/stocks` - Get stock levels
-- `POST /inventory/stocks/adjust` - Adjust stock
-- `GET /inventory/stock-movements` - Get stock movements
+---
 
-### Purchases
-- `GET /purchases/` - List purchases
-- `POST /purchases/` - Create purchase
-- `GET /purchases/{id}` - Get purchase
-
-### Production
-- `GET /production/` - List production runs
-- `POST /production/` - Create production run
-- `GET /production/{id}` - Get production run
-- `POST /production/{id}/complete` - Complete production run
-
-### Transfers
-- `GET /transfers/` - List transfers
-- `POST /transfers/` - Create transfer
-- `GET /transfers/{id}` - Get transfer
-- `POST /transfers/{id}/receive` - Receive transfer
-
-### Sales
-- `GET /sales/` - List sales
-- `POST /sales/` - Create sale
-- `GET /sales/{id}` - Get sale
-
-### Returns
-- `GET /returns/` - List returns
-- `POST /returns/` - Create return
-- `GET /returns/{id}` - Get return
-
-### WebSocket
-- `WS /ws` - WebSocket connection for real-time updates
-
-### Business Analytics
-- `GET /analytics/dashboard` - Comprehensive business dashboard
-- `GET /analytics/profit-loss` - Profit and loss analysis
-- `GET /analytics/inventory-report` - Detailed inventory report
-- `GET /analytics/financial-summary` - Financial summary and breakdown
-
-### Human Resources
-- `GET /hr/employees` - List employees with filtering
-- `POST /hr/employees` - Create new employee
-- `PUT /hr/employees/{id}` - Update employee information
-- `DELETE /hr/employees/{id}` - Deactivate employee
-- `GET /hr/performance` - Employee performance metrics
-- `GET /hr/workforce-summary` - Workforce statistics and summary
-
-### Business Intelligence
-- `GET /business-intelligence/kpis` - Key Performance Indicators
-- `GET /business-intelligence/trends` - Business trends over time
-- `GET /business-intelligence/comparative-analysis` - Period-over-period analysis
-- `GET /business-intelligence/business-health` - Business health score and recommendations
-
-### Finance
-- `GET /finance/profit-loss-statement` - Comprehensive P&L statement
-- `GET /finance/cash-flow-statement` - Cash flow analysis
-- `GET /finance/balance-sheet` - Balance sheet report
-- `GET /finance/financial-ratios` - Financial ratios and analysis
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Run the test suite
-6. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License.
-
-## Support
-
-For support and questions, please open an issue in the repository.
+**Version**: 1.0.0  
+**Last Updated**: 2024-01-01  
+**API Base URL**: `http://localhost:8000`

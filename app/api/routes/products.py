@@ -40,8 +40,8 @@ async def get_products(
         statement = statement.where(Product.is_active == is_active)
     
     statement = statement.offset(skip).limit(limit)
-    products = await db.exec(statement)
-    return products.all()
+    result = await db.execute(statement)
+    return result.scalars().all()
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
@@ -68,8 +68,8 @@ async def get_product(
     ```
     """
     statement = select(Product).where(Product.id == product_id)
-    product = await db.exec(statement)
-    product = product.first()
+    result = await db.execute(statement)
+    product = result.scalar_one_or_none()
     
     if not product:
         raise HTTPException(
@@ -103,8 +103,9 @@ async def create_product(
     """
     # Check if SKU already exists
     statement = select(Product).where(Product.sku == product_data.sku)
-    existing_product = await db.exec(statement)
-    if existing_product.first():
+    result = await db.execute(statement)
+    existing_product = result.scalar_one_or_none()
+    if existing_product:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Product with this SKU already exists"
@@ -129,8 +130,8 @@ async def update_product(
     Update a product
     """
     statement = select(Product).where(Product.id == product_id)
-    product = await db.exec(statement)
-    product = product.first()
+    result = await db.execute(statement)
+    product = result.scalar_one_or_none()
     
     if not product:
         raise HTTPException(
@@ -141,8 +142,8 @@ async def update_product(
     # Check if new SKU already exists (if provided)
     if product_data.sku and product_data.sku != product.sku:
         statement = select(Product).where(Product.sku == product_data.sku)
-        existing_product = await db.exec(statement)
-        if existing_product.first():
+        existing_product = await db.execute(statement)
+        if existing_product:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Product with this SKU already exists"
@@ -169,8 +170,8 @@ async def delete_product(
     Delete a product (soft delete by setting is_active=False)
     """
     statement = select(Product).where(Product.id == product_id)
-    product = await db.exec(statement)
-    product = product.first()
+    result = await db.execute(statement)
+    product = result.scalar_one_or_none()
     
     if not product:
         raise HTTPException(

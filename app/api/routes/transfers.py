@@ -6,6 +6,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_session
 from app.models import (
@@ -34,9 +35,11 @@ async def get_transfers(
          -H "Authorization: Bearer <token>"
     ```
     """
-    statement = select(Transfer).offset(skip).limit(limit).order_by(Transfer.created_at.desc())
-    transfers = await db.exec(statement)
-    return transfers.all()
+    statement = select(Transfer).options(
+        selectinload(Transfer.transfer_lines)
+    ).offset(skip).limit(limit).order_by(Transfer.created_at.desc())
+    result = await db.execute(statement)
+    return result.scalars().all()
 
 
 @router.get("/{transfer_id}", response_model=TransferResponse)
@@ -48,9 +51,11 @@ async def get_transfer(
     """
     Get a specific transfer by ID
     """
-    statement = select(Transfer).where(Transfer.id == transfer_id)
-    transfer = await db.exec(statement)
-    transfer = transfer.first()
+    statement = select(Transfer).options(
+        selectinload(Transfer.transfer_lines)
+    ).where(Transfer.id == transfer_id)
+    result = await db.execute(statement)
+    transfer = result.scalar_one_or_none()
     
     if not transfer:
         raise HTTPException(
@@ -91,96 +96,105 @@ async def create_transfer(
     }
     ```
     """
-    async with db.begin():
-        # Check if transfer number already exists
-        statement = select(Transfer).where(Transfer.transfer_number == transfer_data.transfer_number)
-        existing_transfer = await db.exec(statement)
-        if existing_transfer.first():
+    # Check if transfer number already exists
+    statement = select(Transfer).where(Transfer.transfer_number == transfer_data.transfer_number)
+    result = await db.execute(statement)
+    existing_transfer = result.scalar_one_or_none()
+    if existing_transfer:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Transfer with this number already exists"
+        )
+    
+    # Validate stock availability at source shop
+    for line_data in transfer_data.transfer_lines:
+        statement = select(StockItem).where(
+            and_(
+                StockItem.shop_id == transfer_data.from_shop_id,
+                StockItem.product_id == line_data.product_id,
+                StockItem.item_type == ItemType.PRODUCT
+            )
+        )
+        result = await db.execute(statement)
+        stock_item = result.scalar_one_or_none()
+        # stock_item is already a single object from scalar_one_or_none()
+        
+        if not stock_item:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Transfer with this number already exists"
+                detail=f"No stock found for product ID {line_data.product_id} at source shop"
             )
         
-        # Validate stock availability at source shop
-        for line_data in transfer_data.transfer_lines:
-            statement = select(StockItem).where(
-                and_(
-                    StockItem.shop_id == transfer_data.from_shop_id,
-                    StockItem.product_id == line_data.product_id,
-                    StockItem.item_type == ItemType.PRODUCT
-                )
+        available_quantity = stock_item.quantity - stock_item.reserved_quantity
+        if available_quantity < line_data.quantity:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Insufficient stock for product ID {line_data.product_id}. "
+                       f"Available: {available_quantity}, Required: {line_data.quantity}"
             )
-            stock_item = await db.exec(statement)
-            stock_item = stock_item.first()
-            
-            if not stock_item:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"No stock found for product ID {line_data.product_id} at source shop"
-                )
-            
-            available_quantity = stock_item.quantity - stock_item.reserved_quantity
-            if available_quantity < line_data.quantity:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Insufficient stock for product ID {line_data.product_id}. "
-                           f"Available: {available_quantity}, Required: {line_data.quantity}"
-                )
-        
-        # Create transfer
-        db_transfer = Transfer(
-            transfer_number=transfer_data.transfer_number,
-            from_shop_id=transfer_data.from_shop_id,
-            to_shop_id=transfer_data.to_shop_id,
-            transfer_date=transfer_data.transfer_date,
-            notes=transfer_data.notes,
-            status=TransferStatus.PENDING
-        )
-        
-        db.add(db_transfer)
-        await db.flush()  # Get the ID
-        
-        # Create transfer lines and reserve stock
-        for line_data in transfer_data.transfer_lines:
-            # Create transfer line
-            transfer_line = TransferLine(
-                transfer_id=db_transfer.id,
-                product_id=line_data.product_id,
-                quantity=line_data.quantity,
-                unit_cost=line_data.unit_cost,
-                total_cost=line_data.quantity * line_data.unit_cost
-            )
-            db.add(transfer_line)
-            
-            # Reserve stock at source shop
-            statement = select(StockItem).where(
-                and_(
-                    StockItem.shop_id == transfer_data.from_shop_id,
-                    StockItem.product_id == line_data.product_id,
-                    StockItem.item_type == ItemType.PRODUCT
-                )
-            )
-            stock_item = await db.exec(statement)
-            stock_item = stock_item.first()
-            
-            stock_item.reserved_quantity += line_data.quantity
-            
-            # Create stock movement for reservation
-            stock_movement = StockMovement(
-                shop_id=transfer_data.from_shop_id,
-                item_type=ItemType.PRODUCT,
-                product_id=line_data.product_id,
-                quantity=-line_data.quantity,  # Negative for deduction
-                reason=MovementReason.TRANSFER_OUT,
-                reference_id=db_transfer.id,
-                reference_type="transfer"
-            )
-            db.add(stock_movement)
-        
-        await db.commit()
-        await db.refresh(db_transfer)
     
-    return db_transfer
+    # Create transfer
+    db_transfer = Transfer(
+        transfer_number=transfer_data.transfer_number,
+        from_shop_id=transfer_data.from_shop_id,
+        to_shop_id=transfer_data.to_shop_id,
+        transfer_date=transfer_data.transfer_date,
+        notes=transfer_data.notes,
+        status=TransferStatus.PENDING
+    )
+    
+    db.add(db_transfer)
+    await db.flush()  # Get the ID
+    
+    # Create transfer lines and reserve stock
+    for line_data in transfer_data.transfer_lines:
+        # Create transfer line
+        transfer_line = TransferLine(
+            transfer_id=db_transfer.id,
+            product_id=line_data.product_id,
+            quantity=line_data.quantity,
+            unit_cost=line_data.unit_cost,
+            total_cost=line_data.quantity * line_data.unit_cost
+        )
+        db.add(transfer_line)
+        
+        # Reserve stock at source shop
+        statement = select(StockItem).where(
+            and_(
+                StockItem.shop_id == transfer_data.from_shop_id,
+                StockItem.product_id == line_data.product_id,
+                StockItem.item_type == ItemType.PRODUCT
+            )
+        )
+        result = await db.execute(statement)
+        stock_item = result.scalar_one_or_none()
+        # stock_item is already a single object from scalar_one_or_none()
+        
+        stock_item.reserved_quantity += line_data.quantity
+        
+        # Create stock movement for reservation
+        stock_movement = StockMovement(
+            shop_id=transfer_data.from_shop_id,
+            item_type=ItemType.PRODUCT,
+            product_id=line_data.product_id,
+            quantity=-line_data.quantity,  # Negative for deduction
+            reason=MovementReason.TRANSFER_OUT,
+            reference_id=db_transfer.id,
+            reference_type="transfer"
+        )
+        db.add(stock_movement)
+    
+    await db.commit()
+    await db.refresh(db_transfer)
+    
+    # Eager load relationships for response serialization
+    statement = select(Transfer).options(
+        selectinload(Transfer.transfer_lines)
+    ).where(Transfer.id == db_transfer.id)
+    result = await db.execute(statement)
+    transfer_with_relations = result.scalar_one()
+    
+    return transfer_with_relations
 
 
 @router.post("/{transfer_id}/receive", response_model=TransferResponse)
@@ -208,8 +222,9 @@ async def receive_transfer(
     async with db.begin():
         # Get transfer
         statement = select(Transfer).where(Transfer.id == transfer_id)
-        transfer = await db.exec(statement)
-        transfer = transfer.first()
+        result = await db.execute(statement)
+        transfer = result.scalar_one_or_none()
+        # transfer is already a single object from scalar_one_or_none()
         
         if not transfer:
             raise HTTPException(
@@ -225,8 +240,8 @@ async def receive_transfer(
         
         # Get transfer lines
         statement = select(TransferLine).where(TransferLine.transfer_id == transfer_id)
-        transfer_lines = await db.exec(statement)
-        transfer_lines = transfer_lines.all()
+        result = await db.execute(statement)
+        transfer_lines = result.scalars().all()
         
         # Process each transfer line
         for line in transfer_lines:
@@ -238,8 +253,9 @@ async def receive_transfer(
                     StockItem.item_type == ItemType.PRODUCT
                 )
             )
-            source_stock_item = await db.exec(statement)
-            source_stock_item = source_stock_item.first()
+            result = await db.execute(statement)
+            source_stock_item = result.scalar_one_or_none()
+            # source_stock_item is already a single object from scalar_one_or_none()
             
             source_stock_item.quantity -= line.quantity
             source_stock_item.reserved_quantity -= line.quantity
@@ -252,8 +268,9 @@ async def receive_transfer(
                     StockItem.item_type == ItemType.PRODUCT
                 )
             )
-            dest_stock_item = await db.exec(statement)
-            dest_stock_item = dest_stock_item.first()
+            result = await db.execute(statement)
+            dest_stock_item = result.scalar_one_or_none()
+            # dest_stock_item is already a single object from scalar_one_or_none()
             
             if not dest_stock_item:
                 # Create new stock item at destination

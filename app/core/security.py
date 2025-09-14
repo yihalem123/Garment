@@ -7,6 +7,7 @@ from typing import Optional, Union
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import User
@@ -54,9 +55,25 @@ def get_user_by_email(db: Session, email: str) -> Optional[User]:
     return db.exec(statement).first()
 
 
+async def get_user_by_email_async(db: AsyncSession, email: str) -> Optional[User]:
+    """Get user by email (async version)"""
+    result = await db.execute(select(User).where(User.email == email))
+    return result.scalar_one_or_none()
+
+
 def authenticate_user(db: Session, email: str, password: str) -> Union[User, bool]:
     """Authenticate a user"""
     user = get_user_by_email(db, email)
+    if not user:
+        return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user
+
+
+async def authenticate_user_async(db: AsyncSession, email: str, password: str) -> Union[User, bool]:
+    """Authenticate a user (async version)"""
+    user = await get_user_by_email_async(db, email)
     if not user:
         return False
     if not verify_password(password, user.hashed_password):
