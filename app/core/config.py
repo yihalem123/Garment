@@ -4,14 +4,14 @@ Application configuration settings
 import os
 from typing import List
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     """Application settings"""
     
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://garment_user:garment_pass@localhost:5432/garment_db"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./garment.db"
     
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"

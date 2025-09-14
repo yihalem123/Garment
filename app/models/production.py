@@ -9,8 +9,7 @@ from enum import Enum
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
-    from app.models.product import Product
-    from app.models.raw_material import RawMaterial
+    from app.models.product import Product, RawMaterial
 
 
 class ProductionStatus(str, Enum):
@@ -56,8 +55,8 @@ class ProductionLine(SQLModel, table=True):
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships
-    production_run: ProductionRun = Relationship(back_populates="production_lines")
-    product: Product = Relationship(back_populates="production_lines")
+    production_run: "ProductionRun" = Relationship(back_populates="production_lines")
+    product: "Product" = Relationship(back_populates="production_lines")
 
 
 class ProductionConsumption(SQLModel, table=True):
@@ -72,5 +71,5 @@ class ProductionConsumption(SQLModel, table=True):
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships
-    production_run: ProductionRun = Relationship(back_populates="production_consumptions")
-    raw_material: RawMaterial = Relationship(back_populates="production_consumptions")
+    production_run: "ProductionRun" = Relationship(back_populates="production_consumptions")
+    raw_material: "RawMaterial" = Relationship(back_populates="production_consumptions")

@@ -61,5 +61,5 @@ class TransferLine(SQLModel, table=True):
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships
-    transfer: Transfer = Relationship(back_populates="transfer_lines")
-    product: Product = Relationship()
+    transfer: "Transfer" = Relationship(back_populates="transfer_lines")
+    product: "Product" = Relationship()

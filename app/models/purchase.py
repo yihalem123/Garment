@@ -9,7 +9,7 @@ from enum import Enum
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
-    from app.models.raw_material import RawMaterial
+    from app.models.product import RawMaterial
 
 
 class PurchaseStatus(str, Enum):
@@ -51,5 +51,5 @@ class PurchaseLine(SQLModel, table=True):
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships
-    purchase: Purchase = Relationship(back_populates="purchase_lines")
-    raw_material: RawMaterial = Relationship(back_populates="purchase_lines")
+    purchase: "Purchase" = Relationship(back_populates="purchase_lines")
+    raw_material: "RawMaterial" = Relationship(back_populates="purchase_lines")

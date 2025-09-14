@@ -12,7 +12,6 @@ if TYPE_CHECKING:
     from app.models.purchase import PurchaseLine
     from app.models.production import ProductionLine, ProductionConsumption
     from app.models.sale import SaleLine
-    from app.models.fabric_rule import FabricRule
 
 
 class Product(SQLModel, table=True):
@@ -70,5 +69,5 @@ class FabricRule(SQLModel, table=True):
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships
-    product: Product = Relationship(back_populates="fabric_rules")
-    raw_material: RawMaterial = Relationship(back_populates="fabric_rules")
+    product: "Product" = Relationship(back_populates="fabric_rules")
+    raw_material: "RawMaterial" = Relationship(back_populates="fabric_rules")

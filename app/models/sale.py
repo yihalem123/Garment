@@ -63,8 +63,8 @@ class SaleLine(SQLModel, table=True):
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships
-    sale: Sale = Relationship(back_populates="sale_lines")
-    product: Product = Relationship(back_populates="sale_lines")
+    sale: "Sale" = Relationship(back_populates="sale_lines")
+    product: "Product" = Relationship(back_populates="sale_lines")
 
 
 class Payment(SQLModel, table=True):
@@ -81,4 +81,4 @@ class Payment(SQLModel, table=True):
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships
-    sale: Sale = Relationship(back_populates="payments")
+    sale: "Sale" = Relationship(back_populates="payments")

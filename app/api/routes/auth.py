@@ -115,8 +115,8 @@ async def read_users_me(
 @router.post("/users", response_model=UserResponse)
 async def create_user(
     user_data: UserCreate,
-    db: AsyncSession = Depends(get_session),
-    current_user: Annotated[User, Depends(get_current_user)]
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_session)
 ):
     """
     Create a new user (admin only)
