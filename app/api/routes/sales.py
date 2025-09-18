@@ -30,6 +30,9 @@ async def get_sales(
     """
     Get all sales with optional shop filtering
     
+    For shop managers, automatically filters by their shop_id.
+    For admins, allows filtering by any shop_id.
+    
     Example request:
     ```
     curl -X GET "http://localhost:8000/sales/?shop_id=1" \
@@ -40,8 +43,26 @@ async def get_sales(
         selectinload(Sale.sale_lines),
         selectinload(Sale.payments)
     )
-    if shop_id:
-        statement = statement.where(Sale.shop_id == shop_id)
+    
+    # Shop manager role-based filtering
+    if current_user.role == "shop_manager":
+        # Shop managers can only see their shop's sales
+        if current_user.shop_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Shop manager must be assigned to a shop"
+            )
+        statement = statement.where(Sale.shop_id == current_user.shop_id)
+    elif current_user.role == "admin":
+        # Admins can filter by any shop or see all
+        if shop_id:
+            statement = statement.where(Sale.shop_id == shop_id)
+    else:
+        # Staff can only see their shop's sales if assigned
+        if current_user.shop_id:
+            statement = statement.where(Sale.shop_id == current_user.shop_id)
+        elif shop_id:
+            statement = statement.where(Sale.shop_id == shop_id)
     
     statement = statement.offset(skip).limit(limit).order_by(Sale.created_at.desc())
     result = await db.execute(statement)
@@ -82,6 +103,9 @@ async def create_sale(
     """
     Create a new sale with atomic stock updates
     
+    For shop managers, automatically uses their shop_id.
+    For admins, allows creating sales for any shop.
+    
     This endpoint:
     1. Validates stock availability
     2. Creates sale and sale lines
@@ -121,6 +145,26 @@ async def create_sale(
     }
     ```
     """
+    # Shop manager role-based restrictions
+    if current_user.role == "shop_manager":
+        # Shop managers can only create sales for their shop
+        if current_user.shop_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Shop manager must be assigned to a shop"
+            )
+        # Override shop_id with the manager's shop
+        sale_data.shop_id = current_user.shop_id
+    elif current_user.role == "staff":
+        # Staff can only create sales for their assigned shop
+        if current_user.shop_id:
+            sale_data.shop_id = current_user.shop_id
+        elif not sale_data.shop_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Staff must be assigned to a shop or specify shop_id"
+            )
+    
     # Check if sale number already exists
     statement = select(Sale).where(Sale.sale_number == sale_data.sale_number)
     result = await db.execute(statement)

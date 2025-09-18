@@ -71,6 +71,7 @@ async def get_business_dashboard(
     sales_result = await db.execute(sales_query)
     sales_stats = sales_result.first()
     
+    
     # Top Selling Products
     top_products_query = select(
         Product.name,
@@ -85,7 +86,7 @@ async def get_business_dashboard(
      .limit(10)
     
     top_products = await db.execute(top_products_query)
-    top_products_list = top_products.scalars().all()
+    top_products_list = top_products.all()
     
     # Inventory Status
     inventory_query = select(
@@ -127,6 +128,18 @@ async def get_business_dashboard(
         .order_by(desc(Sale.created_at)).limit(5)
     recent_sales = await db.execute(recent_sales_query)
     recent_sales_list = recent_sales.scalars().all()
+    
+    # Monthly Employee Costs
+    employee_costs_query = select(
+        func.sum(User.salary).label("total_monthly_salary"),
+        func.count(User.id).label("employee_count")
+    ).where(User.is_active == True)
+    
+    if shop_id:
+        employee_costs_query = employee_costs_query.where(User.shop_id == shop_id)
+    
+    employee_costs_result = await db.execute(employee_costs_query)
+    employee_costs_stats = employee_costs_result.first()
     
     return {
         "period": {
@@ -180,7 +193,12 @@ async def get_business_dashboard(
                 "shop_id": sale.shop_id
             }
             for sale in recent_sales_list
-        ]
+        ],
+        "monthly_costs": {
+            "total_employee_salary": float(employee_costs_stats.total_monthly_salary or 0),
+            "employee_count": employee_costs_stats.employee_count or 0,
+            "average_salary": float(employee_costs_stats.total_monthly_salary or 0) / max(employee_costs_stats.employee_count or 1, 1)
+        }
     }
 
 

@@ -8,6 +8,7 @@ from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.employee import Employee
     from app.models.inventory import StockItem
     from app.models.sale import Sale
     from app.models.transfer import Transfer
@@ -28,6 +29,7 @@ class Shop(SQLModel, table=True):
     
     # Relationships
     users: List["User"] = Relationship(back_populates="shop")
+    employees: List["Employee"] = Relationship(back_populates="shop")
     stock_items: List["StockItem"] = Relationship(back_populates="shop")
     sales: List["Sale"] = Relationship(back_populates="shop")
     transfers_from: List["Transfer"] = Relationship(

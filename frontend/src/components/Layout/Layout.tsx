@@ -48,21 +48,23 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
-const menuItems = [
-  { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard', color: '#4CAF50' },
-  { text: 'Products', icon: <Inventory />, path: '/products', color: '#2196F3' },
-  { text: 'Raw Materials', icon: <Inventory />, path: '/raw-materials', color: '#FF9800' },
-  { text: 'Inventory', icon: <Inventory />, path: '/inventory', color: '#9C27B0' },
-  { text: 'Purchases', icon: <ShoppingCart />, path: '/purchases', color: '#F44336' },
-  { text: 'Production', icon: <Factory />, path: '/production', color: '#607D8B' },
-  { text: 'Transfers', icon: <LocalShipping />, path: '/transfers', color: '#795548' },
-  { text: 'Sales', icon: <PointOfSale />, path: '/sales', color: '#4CAF50' },
-  { text: 'Returns', icon: <AssignmentReturn />, path: '/returns', color: '#FF5722' },
-  { text: 'Analytics', icon: <Analytics />, path: '/analytics', color: '#3F51B5' },
-  { text: 'Business Intelligence', icon: <Psychology />, path: '/business-intelligence', color: '#E91E63' },
-  { text: 'Finance', icon: <AccountBalance />, path: '/finance', color: '#00BCD4' },
-  { text: 'HR', icon: <People />, path: '/hr', color: '#8BC34A' },
-  { text: 'Shops', icon: <Store />, path: '/shops', color: '#FFC107' },
+const allMenuItems = [
+  { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard', color: '#4CAF50', roles: ['admin', 'shop_manager', 'staff'] },
+  { text: 'Products', icon: <Inventory />, path: '/products', color: '#2196F3', roles: ['admin', 'shop_manager', 'staff'] },
+  { text: 'Raw Materials', icon: <Inventory />, path: '/raw-materials', color: '#FF9800', roles: ['admin', 'shop_manager', 'staff'] },
+  { text: 'Inventory', icon: <Inventory />, path: '/inventory', color: '#9C27B0', roles: ['admin', 'shop_manager', 'staff'] },
+  { text: 'Purchases', icon: <ShoppingCart />, path: '/purchases', color: '#F44336', roles: ['admin', 'shop_manager', 'staff'] },
+  { text: 'Production', icon: <Factory />, path: '/production', color: '#607D8B', roles: ['admin', 'shop_manager', 'staff'] },
+  { text: 'Transfers', icon: <LocalShipping />, path: '/transfers', color: '#795548', roles: ['admin', 'shop_manager', 'staff'] },
+  { text: 'Sales', icon: <PointOfSale />, path: '/sales', color: '#4CAF50', roles: ['admin', 'shop_manager', 'staff'] },
+  { text: 'Returns', icon: <AssignmentReturn />, path: '/returns', color: '#FF5722', roles: ['admin', 'shop_manager', 'staff'] },
+  { text: 'Analytics', icon: <Analytics />, path: '/analytics', color: '#3F51B5', roles: ['admin', 'shop_manager', 'staff'] },
+  { text: 'Business Intelligence', icon: <Psychology />, path: '/business-intelligence', color: '#E91E63', roles: ['admin'] },
+  { text: 'Finance', icon: <AccountBalance />, path: '/finance', color: '#00BCD4', roles: ['admin', 'shop_manager'] },
+  { text: 'HR', icon: <People />, path: '/hr', color: '#8BC34A', roles: ['admin'] },
+  { text: 'Employees', icon: <People />, path: '/employees', color: '#4CAF50', roles: ['admin', 'shop_manager'] },
+  { text: 'Payroll', icon: <AccountBalance />, path: '/payroll', color: '#FF9800', roles: ['admin'] },
+  { text: 'Shops', icon: <Store />, path: '/shops', color: '#FFC107', roles: ['admin'] },
 ];
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
@@ -73,6 +75,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Filter menu items based on user role
+  const menuItems = allMenuItems.filter(item => 
+    user?.role && item.roles.includes(user.role)
+  );
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -282,6 +289,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             }}>
               {user?.email || 'admin@garment.com'}
             </Typography>
+            {user?.shop && (
+              <Typography variant="caption" color="primary.main" noWrap sx={{ 
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                display: 'block',
+                mt: 0.5,
+              }}>
+                🏪 {user.shop.name}
+              </Typography>
+            )}
           </Box>
         </Box>
         

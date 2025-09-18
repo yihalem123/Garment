@@ -22,26 +22,32 @@ import {
 } from '@mui/icons-material';
 import { useQuery } from 'react-query';
 import { api } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 const Dashboard: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const { user } = useAuth();
   
   const { data: dashboardData, isLoading } = useQuery(
     'dashboard',
     async () => {
       try {
-        const response = await api.get('/analytics/dashboard');
+        // For shop managers, get shop-specific data
+        const endpoint = user?.role === 'shop_manager' && user?.shop_id 
+          ? `/analytics/dashboard?shop_id=${user.shop_id}`
+          : '/analytics/dashboard';
+        const response = await api.get(endpoint);
         return response.data;
       } catch (error) {
         // Return mock data if API fails
         console.warn('API not available, using mock data:', error);
         return {
-          total_sales: 125000,
-          total_purchases: 85000,
-          total_products: 150,
-          total_customers: 89
+          total_sales: user?.role === 'shop_manager' ? 45000 : 125000,
+          total_purchases: user?.role === 'shop_manager' ? 32000 : 85000,
+          total_products: user?.role === 'shop_manager' ? 45 : 150,
+          total_customers: user?.role === 'shop_manager' ? 25 : 89
         };
       }
     }

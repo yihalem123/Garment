@@ -23,11 +23,36 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Chip,
+  Avatar,
+  Tooltip,
+  Tabs,
+  Tab,
+  Alert,
+  Divider,
+  Badge,
+  SpeedDial,
+  SpeedDialAction,
+  SpeedDialIcon,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
-import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { 
+  Add as AddIcon, 
+  Delete as DeleteIcon,
+  PointOfSale,
+  Receipt,
+  People,
+  TrendingUp,
+  AttachMoney,
+  ShoppingCart,
+  Print,
+  Share,
+  Edit,
+  Visibility,
+} from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { api } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -69,6 +94,8 @@ interface Payment {
 
 const Sales: React.FC = () => {
   const [open, setOpen] = useState(false);
+  const [quickSaleOpen, setQuickSaleOpen] = useState(false);
+  const [tabValue, setTabValue] = useState(0);
   const [saleLines, setSaleLines] = useState<SaleLine[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [formData, setFormData] = useState({
@@ -82,6 +109,7 @@ const Sales: React.FC = () => {
   });
 
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: sales, isLoading } = useQuery(
     'sales',
@@ -218,28 +246,304 @@ const Sales: React.FC = () => {
     { field: 'sale_date', headerName: 'Sale Date', width: 120 },
   ];
 
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-ET', {
+      style: 'currency',
+      currency: 'ETB',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'success';
+      case 'pending': return 'warning';
+      case 'cancelled': return 'error';
+      default: return 'default';
+    }
+  };
+
+  // Mock sales statistics
+  const salesStats = {
+    totalSales: 125000,
+    totalOrders: 89,
+    averageOrder: 1404,
+    todaySales: 3200,
+    pendingOrders: 5
+  };
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">Sales</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleOpen}
-        >
-          New Sale
-        </Button>
+        <Typography variant="h4">Sales Management</Typography>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<Receipt />}
+            onClick={() => setQuickSaleOpen(true)}
+          >
+            Quick Sale
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleOpen}
+          >
+            New Sale
+          </Button>
+        </Box>
       </Box>
 
-      <Box sx={{ height: 400, width: '100%' }}>
-        <DataGrid
-          rows={sales || []}
-          columns={columns}
-          loading={isLoading}
-          pageSizeOptions={[5, 10, 25]}
-          disableRowSelectionOnClick
-        />
+      {/* Sales Statistics Cards */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ background: 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)', color: 'white' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <AttachMoney sx={{ mr: 1 }} />
+                <Typography variant="h6">Total Sales</Typography>
+              </Box>
+              <Typography variant="h3" fontWeight="bold">
+                {formatCurrency(salesStats.totalSales)}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                This month
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ background: 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)', color: 'white' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <ShoppingCart sx={{ mr: 1 }} />
+                <Typography variant="h6">Total Orders</Typography>
+              </Box>
+              <Typography variant="h3" fontWeight="bold">
+                {salesStats.totalOrders}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                This month
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ background: 'linear-gradient(135deg, #FF9800 0%, #F57C00 100%)', color: 'white' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <TrendingUp sx={{ mr: 1 }} />
+                <Typography variant="h6">Average Order</Typography>
+              </Box>
+              <Typography variant="h3" fontWeight="bold">
+                {formatCurrency(salesStats.averageOrder)}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Per order
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ background: 'linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%)', color: 'white' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <PointOfSale sx={{ mr: 1 }} />
+                <Typography variant="h6">Today's Sales</Typography>
+              </Box>
+              <Typography variant="h3" fontWeight="bold">
+                {formatCurrency(salesStats.todaySales)}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Today
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Tabs for different views */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={tabValue} onChange={handleTabChange}>
+          <Tab label="All Sales" />
+          <Tab label="Today's Sales" />
+          <Tab label="Pending Orders" />
+          <Tab label="Top Customers" />
+        </Tabs>
       </Box>
+
+      {/* Sales Table */}
+      {tabValue === 0 && (
+        <Box sx={{ height: 500, width: '100%' }}>
+          <DataGrid
+            rows={sales || []}
+            columns={[
+              { 
+                field: 'id', 
+                headerName: 'ID', 
+                width: 70,
+                renderCell: (params) => (
+                  <Typography variant="body2" fontWeight="bold">
+                    #{params.value}
+                  </Typography>
+                )
+              },
+              { 
+                field: 'sale_number', 
+                headerName: 'Sale Number', 
+                width: 150,
+                renderCell: (params) => (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Receipt fontSize="small" color="primary" />
+                    <Typography variant="body2" fontWeight="bold">
+                      {params.value}
+                    </Typography>
+                  </Box>
+                )
+              },
+              { 
+                field: 'customer_name', 
+                headerName: 'Customer', 
+                width: 200,
+                renderCell: (params) => (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem' }}>
+                      {params.value?.charAt(0) || 'C'}
+                    </Avatar>
+                    <Typography variant="body2">
+                      {params.value || 'Walk-in Customer'}
+                    </Typography>
+                  </Box>
+                )
+              },
+              { 
+                field: 'total_amount', 
+                headerName: 'Total Amount', 
+                width: 120, 
+                type: 'number',
+                renderCell: (params) => (
+                  <Typography variant="body2" fontWeight="bold" color="success.main">
+                    {formatCurrency(params.value || 0)}
+                  </Typography>
+                )
+              },
+              { 
+                field: 'final_amount', 
+                headerName: 'Final Amount', 
+                width: 120, 
+                type: 'number',
+                renderCell: (params) => (
+                  <Typography variant="body2" fontWeight="bold" color="primary.main">
+                    {formatCurrency(params.value || 0)}
+                  </Typography>
+                )
+              },
+              { 
+                field: 'status', 
+                headerName: 'Status', 
+                width: 120,
+                renderCell: (params) => (
+                  <Chip
+                    label={params.value}
+                    size="small"
+                    color={getStatusColor(params.value) as any}
+                    variant="filled"
+                  />
+                )
+              },
+              { 
+                field: 'sale_date', 
+                headerName: 'Sale Date', 
+                width: 120,
+                renderCell: (params) => (
+                  <Typography variant="body2">
+                    {dayjs(params.value).format('MMM DD, YYYY')}
+                  </Typography>
+                )
+              },
+              {
+                field: 'actions',
+                headerName: 'Actions',
+                width: 120,
+                sortable: false,
+                renderCell: (params) => (
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Tooltip title="View Details">
+                      <IconButton size="small">
+                        <Visibility fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Print Receipt">
+                      <IconButton size="small">
+                        <Print fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Share">
+                      <IconButton size="small">
+                        <Share fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                )
+              }
+            ]}
+            loading={isLoading}
+            pageSizeOptions={[5, 10, 25]}
+            disableRowSelectionOnClick
+            sx={{
+              '& .MuiDataGrid-row:hover': {
+                backgroundColor: 'rgba(25, 118, 210, 0.04)',
+              },
+            }}
+          />
+        </Box>
+      )}
+
+      {/* Today's Sales Tab */}
+      {tabValue === 1 && (
+        <Box>
+          <Typography variant="h6" gutterBottom>
+            Today's Sales - {dayjs().format('MMMM DD, YYYY')}
+          </Typography>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Showing sales for today. Total: {formatCurrency(salesStats.todaySales)}
+          </Alert>
+          {/* Today's sales content would go here */}
+        </Box>
+      )}
+
+      {/* Pending Orders Tab */}
+      {tabValue === 2 && (
+        <Box>
+          <Typography variant="h6" gutterBottom>
+            Pending Orders ({salesStats.pendingOrders})
+          </Typography>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            You have {salesStats.pendingOrders} pending orders that need attention.
+          </Alert>
+          {/* Pending orders content would go here */}
+        </Box>
+      )}
+
+      {/* Top Customers Tab */}
+      {tabValue === 3 && (
+        <Box>
+          <Typography variant="h6" gutterBottom>
+            Top Customers
+          </Typography>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Customer analytics and top buyers will be displayed here.
+          </Alert>
+          {/* Top customers content would go here */}
+        </Box>
+      )}
 
       <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
         <DialogTitle>Create New Sale</DialogTitle>
@@ -476,6 +780,67 @@ const Sales: React.FC = () => {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* Quick Sale Dialog */}
+      <Dialog open={quickSaleOpen} onClose={() => setQuickSaleOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Quick Sale</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Customer Name"
+                value=""
+                onChange={() => {}}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Product SKU"
+                value=""
+                onChange={() => {}}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Quantity"
+                type="number"
+                value=""
+                onChange={() => {}}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Price"
+                type="number"
+                value=""
+                onChange={() => {}}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Payment Method</InputLabel>
+                <Select value="" onChange={() => {}} label="Payment Method">
+                  <MenuItem value="cash">Cash</MenuItem>
+                  <MenuItem value="card">Card</MenuItem>
+                  <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQuickSaleOpen(false)}>Cancel</Button>
+          <Button variant="contained">Process Sale</Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

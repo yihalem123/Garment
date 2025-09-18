@@ -31,6 +31,9 @@ async def get_stocks(
     """
     Get stock items with filtering
     
+    For shop managers, automatically filters by their shop_id.
+    For admins, allows filtering by any shop_id.
+    
     Example request:
     ```
     curl -X GET "http://localhost:8000/inventory/stocks?shop_id=1&item_type=product" \
@@ -40,8 +43,27 @@ async def get_stocks(
     statement = select(StockItem)
     
     conditions = []
-    if shop_id:
-        conditions.append(StockItem.shop_id == shop_id)
+    
+    # Shop manager role-based filtering
+    if current_user.role == "shop_manager":
+        # Shop managers can only see their shop's stock
+        if current_user.shop_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Shop manager must be assigned to a shop"
+            )
+        conditions.append(StockItem.shop_id == current_user.shop_id)
+    elif current_user.role == "admin":
+        # Admins can filter by any shop or see all
+        if shop_id:
+            conditions.append(StockItem.shop_id == shop_id)
+    else:
+        # Staff can only see their shop's stock if assigned
+        if current_user.shop_id:
+            conditions.append(StockItem.shop_id == current_user.shop_id)
+        elif shop_id:
+            conditions.append(StockItem.shop_id == shop_id)
+    
     if item_type:
         conditions.append(StockItem.item_type == item_type)
     if product_id:

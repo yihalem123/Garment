@@ -22,6 +22,7 @@ async def get_employees(
     shop_id: Optional[int] = Query(None),
     role: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
+    department: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
@@ -29,9 +30,10 @@ async def get_employees(
     Get list of employees with filtering options
     
     Returns employee information including:
-    - Basic details
+    - Basic details (name, email, phone, address)
     - Role and permissions
     - Shop assignment
+    - Salary and employment details
     - Performance metrics
     """
     if current_user.role not in ["admin", "shop_manager"]:
@@ -39,6 +41,15 @@ async def get_employees(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied. Admin or shop manager role required."
         )
+    
+    # Shop manager can only see employees from their shop
+    if current_user.role == "shop_manager":
+        if current_user.shop_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Shop manager must be assigned to a shop"
+            )
+        shop_id = current_user.shop_id
     
     # Build filters
     filters = []
@@ -48,6 +59,8 @@ async def get_employees(
         filters.append(User.role == role)
     if is_active is not None:
         filters.append(User.is_active == is_active)
+    if department:
+        filters.append(User.department == department)
     
     # Get employees with shop information
     query = select(User).options(selectinload(User.shop))
@@ -470,4 +483,103 @@ async def get_workforce_summary(
             }
             for hire in recent_hires
         ]
+    }
+
+
+@router.get("/monthly-costs")
+async def get_monthly_costs(
+    shop_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get monthly costs including employee salaries
+    
+    Returns:
+    - Total monthly salary costs
+    - Breakdown by department
+    - Breakdown by shop
+    - Individual employee costs
+    """
+    if current_user.role not in ["admin", "shop_manager"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Admin or shop manager role required."
+        )
+    
+    # Shop manager can only see costs for their shop
+    if current_user.role == "shop_manager":
+        if current_user.shop_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Shop manager must be assigned to a shop"
+            )
+        shop_id = current_user.shop_id
+    
+    # Build filters
+    filters = [User.is_active == True]
+    if shop_id:
+        filters.append(User.shop_id == shop_id)
+    
+    # Get all active employees with salary information
+    query = select(User).options(selectinload(User.shop)).where(and_(*filters))
+    result = await db.execute(query)
+    employees = result.scalars().all()
+    
+    # Calculate total monthly salary costs
+    total_monthly_salary = sum(
+        float(emp.salary) if emp.salary else 0 
+        for emp in employees
+    )
+    
+    # Breakdown by department
+    dept_costs = {}
+    for emp in employees:
+        if emp.department:
+            dept = emp.department
+            if dept not in dept_costs:
+                dept_costs[dept] = 0
+            dept_costs[dept] += float(emp.salary) if emp.salary else 0
+    
+    # Breakdown by shop
+    shop_costs = {}
+    for emp in employees:
+        if emp.shop:
+            shop_name = emp.shop.name
+            if shop_name not in shop_costs:
+                shop_costs[shop_name] = 0
+            shop_costs[shop_name] += float(emp.salary) if emp.salary else 0
+    
+    # Individual employee costs
+    employee_costs = []
+    for emp in employees:
+        if emp.salary:
+            employee_costs.append({
+                "id": emp.id,
+                "full_name": emp.full_name,
+                "position": emp.position,
+                "department": emp.department,
+                "shop_name": emp.shop.name if emp.shop else "Unassigned",
+                "monthly_salary": float(emp.salary),
+                "role": emp.role
+            })
+    
+    # Sort by salary (highest first)
+    employee_costs.sort(key=lambda x: x["monthly_salary"], reverse=True)
+    
+    return {
+        "total_monthly_salary": total_monthly_salary,
+        "employee_count": len(employees),
+        "breakdown_by_department": [
+            {"department": dept, "total_cost": cost}
+            for dept, cost in dept_costs.items()
+        ],
+        "breakdown_by_shop": [
+            {"shop_name": shop, "total_cost": cost}
+            for shop, cost in shop_costs.items()
+        ],
+        "employee_costs": employee_costs,
+        "average_salary": total_monthly_salary / len(employees) if employees else 0,
+        "highest_paid": employee_costs[0] if employee_costs else None,
+        "lowest_paid": employee_costs[-1] if employee_costs else None
     }

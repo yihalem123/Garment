@@ -17,6 +17,8 @@ import Analytics from './pages/Analytics/Analytics';
 import BusinessIntelligence from './pages/BusinessIntelligence/BusinessIntelligence';
 import Finance from './pages/Finance/Finance';
 import HR from './pages/HR/HR';
+import Employees from './pages/Employees/Employees';
+import Payroll from './pages/Payroll/Payroll';
 import Shops from './pages/Shops/Shops';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -105,6 +107,16 @@ const App: React.FC = () => {
         <Route path="/hr" element={
           <ProtectedRoute>
             <HR />
+          </ProtectedRoute>
+        } />
+        <Route path="/employees" element={
+          <ProtectedRoute>
+            <Employees />
+          </ProtectedRoute>
+        } />
+        <Route path="/payroll" element={
+          <ProtectedRoute>
+            <Payroll />
           </ProtectedRoute>
         } />
         <Route path="/shops" element={

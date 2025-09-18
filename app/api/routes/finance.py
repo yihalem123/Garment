@@ -85,7 +85,7 @@ async def get_profit_loss_statement(
      .group_by(Sale.shop_id)
     
     revenue_by_shop_result = await db.execute(revenue_by_shop_query)
-    revenue_by_shop = revenue_by_shop_result.scalars().all()
+    revenue_by_shop = revenue_by_shop_result.all()
     
     # Get shop names
     shops_query = select(Shop)
@@ -157,9 +157,9 @@ async def get_profit_loss_statement(
             ],
             "by_shop": [
                 {
-                    "shop_id": shop.shop_id,
-                    "shop_name": shop_dict.get(shop.shop_id, f"Shop {shop.shop_id}"),
-                    "revenue": float(shop.revenue)
+                    "shop_id": shop[0],
+                    "shop_name": shop_dict.get(shop[0], f"Shop {shop[0]}"),
+                    "revenue": float(shop[1])
                 }
                 for shop in revenue_by_shop
             ]
@@ -476,7 +476,7 @@ async def get_financial_ratios(
         ProductionRun.status == ProductionStatus.COMPLETED
     ))
     production_costs_result = await db.execute(production_costs_query)
-    production_costs = production_costs_result.first() or 0
+    production_costs = production_costs_result.scalar_one_or_none() or 0
     
     total_operating_expenses = purchase_costs + production_costs
     

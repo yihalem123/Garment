@@ -3,6 +3,8 @@ Database models
 """
 from app.models.base import Base
 from app.models.user import User, UserRole
+from app.models.employee import Employee, EmploymentStatus
+from app.models.payroll import PayrollRecord, PayrollSummary, PayrollStatus
 from app.models.shop import Shop
 from app.models.product import Product, RawMaterial, FabricRule
 from app.models.inventory import StockItem, StockMovement, ItemType, MovementReason
@@ -16,6 +18,11 @@ __all__ = [
     "Base",
     "User",
     "UserRole",
+    "Employee",
+    "EmploymentStatus",
+    "PayrollRecord",
+    "PayrollSummary",
+    "PayrollStatus",
     "Shop", 
     "Product",
     "RawMaterial",

@@ -4,6 +4,7 @@ User model
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 from enum import Enum
+from decimal import Decimal
 
 from sqlmodel import SQLModel, Field, Relationship
 
@@ -29,6 +30,15 @@ class User(SQLModel, table=True):
     role: UserRole = Field(default=UserRole.STAFF)
     is_active: bool = Field(default=True)
     shop_id: Optional[int] = Field(default=None, foreign_key="shops.id")
+    
+    # Salary and employment information
+    salary: Optional[Decimal] = Field(default=None, description="Monthly salary")
+    position: Optional[str] = Field(default=None, description="Job position/title")
+    department: Optional[str] = Field(default=None, description="Department")
+    hire_date: Optional[datetime] = Field(default=None, description="Date of hire")
+    phone: Optional[str] = Field(default=None, description="Phone number")
+    address: Optional[str] = Field(default=None, description="Address")
+    
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
