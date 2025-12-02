@@ -240,7 +240,9 @@ dist
 
 # Gatsby files
 .cache/
-public
+# Don't ignore frontend/public for Create React App
+# public
+!/frontend/public
 
 # Storybook build outputs
 .out

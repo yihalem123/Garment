@@ -35,6 +35,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await conn.run_sync(Base.metadata.create_all)
     
     logger.info("Database tables created successfully")
+    
+    # Create admin user if it doesn't exist
+    from app.db.session import async_session_maker
+    from app.core.security import get_password_hash, get_user_by_email_async
+    from app.models import User, UserRole
+    
+    async with async_session_maker() as db:
+        admin_email = "admin@garment.com"
+        existing_user = await get_user_by_email_async(db, admin_email)
+        
+        if not existing_user:
+            logger.info("Creating default admin user...")
+            admin_user = User(
+                email=admin_email,
+                hashed_password=get_password_hash("admin123"),
+                full_name="System Administrator",
+                role=UserRole.ADMIN,
+                is_active=True,
+                shop_id=None
+            )
+            db.add(admin_user)
+            await db.commit()
+            logger.info(f"Admin user created: {admin_email} / admin123")
+        else:
+            logger.info(f"Admin user already exists: {admin_email}")
+    
     yield
     
     # Shutdown
