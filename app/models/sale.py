@@ -35,9 +35,9 @@ class Sale(SQLModel, table=True):
     shop_id: int = Field(foreign_key="shops.id")
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
-    total_amount: Decimal = Field(decimal_places=2)
-    discount_amount: Decimal = Field(default=0, decimal_places=2)
-    final_amount: Decimal = Field(decimal_places=2)
+    total_amount: Decimal
+    discount_amount: Decimal = Field(default=0)
+    final_amount: Decimal
     status: SaleStatus = Field(default=SaleStatus.PENDING)
     sale_date: str
     notes: Optional[str] = None
@@ -57,9 +57,9 @@ class SaleLine(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     sale_id: int = Field(foreign_key="sales.id")
     product_id: int = Field(foreign_key="products.id")
-    quantity: Decimal = Field(decimal_places=3)
-    unit_price: Decimal = Field(decimal_places=2)
-    total_price: Decimal = Field(decimal_places=2)
+    quantity: Decimal
+    unit_price: Decimal
+    total_price: Decimal
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships
@@ -73,7 +73,7 @@ class Payment(SQLModel, table=True):
     
     id: Optional[int] = Field(default=None, primary_key=True)
     sale_id: int = Field(foreign_key="sales.id")
-    amount: Decimal = Field(decimal_places=2)
+    amount: Decimal
     payment_method: PaymentMethod
     payment_date: str
     reference: Optional[str] = None  # Transaction reference, check number, etc.

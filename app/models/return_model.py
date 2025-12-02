@@ -28,9 +28,9 @@ class Return(SQLModel, table=True):
     return_number: str = Field(unique=True, index=True)
     sale_id: Optional[int] = Field(default=None, foreign_key="sales.id")
     product_id: int = Field(foreign_key="products.id")
-    quantity: Decimal = Field(decimal_places=3)
-    unit_price: Decimal = Field(decimal_places=2)
-    total_amount: Decimal = Field(decimal_places=2)
+    quantity: Decimal
+    unit_price: Decimal
+    total_amount: Decimal
     reason: ReturnReason
     notes: Optional[str] = None
     return_date: str

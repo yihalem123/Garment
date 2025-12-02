@@ -23,8 +23,8 @@ class Product(SQLModel, table=True):
     description: Optional[str] = None
     sku: str = Field(unique=True, index=True)
     category: Optional[str] = None
-    unit_price: Decimal = Field(decimal_places=2)
-    cost_price: Optional[Decimal] = Field(default=None, decimal_places=2)
+    unit_price: Decimal
+    cost_price: Optional[Decimal] = None
     is_active: bool = Field(default=True)
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
@@ -45,7 +45,7 @@ class RawMaterial(SQLModel, table=True):
     description: Optional[str] = None
     sku: str = Field(unique=True, index=True)
     unit: str = Field(default="kg")  # kg, meters, pieces, etc.
-    unit_price: Decimal = Field(decimal_places=2)
+    unit_price: Decimal
     is_active: bool = Field(default=True)
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
@@ -64,7 +64,7 @@ class FabricRule(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     product_id: int = Field(foreign_key="products.id")
     raw_material_id: int = Field(foreign_key="raw_materials.id")
-    consumption_per_unit: Decimal = Field(decimal_places=3)  # e.g., 2.5 kg per shirt
+    consumption_per_unit: Decimal  # e.g., 2.5 kg per shirt
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     

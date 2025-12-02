@@ -27,7 +27,7 @@ class Purchase(SQLModel, table=True):
     order_id: str = Field(unique=True, index=True)  # Auto-generated order ID
     supplier_name: str
     supplier_invoice: Optional[str] = None
-    total_amount: Decimal = Field(decimal_places=2)
+    total_amount: Decimal
     status: PurchaseStatus = Field(default=PurchaseStatus.PENDING)
     purchase_date: str
     received_date: Optional[str] = None
@@ -48,9 +48,9 @@ class PurchaseLine(SQLModel, table=True):
     raw_material_id: Optional[int] = Field(default=None, foreign_key="raw_materials.id")
     item_name: Optional[str] = None  # For custom items
     item_description: Optional[str] = None  # For custom items
-    quantity: Decimal = Field(decimal_places=3)
-    unit_price: Decimal = Field(decimal_places=2)
-    total_price: Decimal = Field(decimal_places=2)
+    quantity: Decimal
+    unit_price: Decimal
+    total_price: Decimal
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships

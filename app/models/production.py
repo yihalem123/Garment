@@ -27,11 +27,11 @@ class ProductionRun(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     run_number: str = Field(unique=True, index=True)
     status: ProductionStatus = Field(default=ProductionStatus.PLANNED)
-    planned_quantity: Decimal = Field(decimal_places=3)
-    actual_quantity: Optional[Decimal] = Field(default=None, decimal_places=3)
-    labor_cost: Decimal = Field(default=0, decimal_places=2)
-    overhead_cost: Decimal = Field(default=0, decimal_places=2)
-    total_cost: Optional[Decimal] = Field(default=None, decimal_places=2)
+    planned_quantity: Decimal
+    actual_quantity: Optional[Decimal] = None
+    labor_cost: Decimal = Field(default=0)
+    overhead_cost: Decimal = Field(default=0)
+    total_cost: Optional[Decimal] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     notes: Optional[str] = None
@@ -50,8 +50,8 @@ class ProductionLine(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     production_run_id: int = Field(foreign_key="production_runs.id")
     product_id: int = Field(foreign_key="products.id")
-    planned_quantity: Decimal = Field(decimal_places=3)
-    actual_quantity: Optional[Decimal] = Field(default=None, decimal_places=3)
+    planned_quantity: Decimal
+    actual_quantity: Optional[Decimal] = None
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships
@@ -66,8 +66,8 @@ class ProductionConsumption(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     production_run_id: int = Field(foreign_key="production_runs.id")
     raw_material_id: int = Field(foreign_key="raw_materials.id")
-    planned_consumption: Decimal = Field(decimal_places=3)
-    actual_consumption: Optional[Decimal] = Field(default=None, decimal_places=3)
+    planned_consumption: Decimal
+    actual_consumption: Optional[Decimal] = None
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships

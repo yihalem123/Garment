@@ -55,9 +55,9 @@ class TransferLine(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     transfer_id: int = Field(foreign_key="transfers.id")
     product_id: int = Field(foreign_key="products.id")
-    quantity: Decimal = Field(decimal_places=3)
-    unit_cost: Decimal = Field(decimal_places=2)
-    total_cost: Decimal = Field(decimal_places=2)
+    quantity: Decimal
+    unit_cost: Decimal
+    total_cost: Decimal
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
     # Relationships

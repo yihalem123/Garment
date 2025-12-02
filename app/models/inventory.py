@@ -40,9 +40,9 @@ class StockItem(SQLModel, table=True):
     item_type: ItemType
     product_id: Optional[int] = Field(default=None, foreign_key="products.id")
     raw_material_id: Optional[int] = Field(default=None, foreign_key="raw_materials.id")
-    quantity: Decimal = Field(decimal_places=3)
-    reserved_quantity: Decimal = Field(default=0, decimal_places=3)
-    min_stock_level: Decimal = Field(default=0, decimal_places=3)
+    quantity: Decimal
+    reserved_quantity: Decimal = Field(default=0)
+    min_stock_level: Decimal = Field(default=0)
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     
@@ -61,7 +61,7 @@ class StockMovement(SQLModel, table=True):
     item_type: ItemType
     product_id: Optional[int] = Field(default=None, foreign_key="products.id")
     raw_material_id: Optional[int] = Field(default=None, foreign_key="raw_materials.id")
-    quantity: Decimal = Field(decimal_places=3)  # positive for additions, negative for deductions
+    quantity: Decimal  # positive for additions, negative for deductions
     reason: MovementReason
     reference_id: Optional[int] = None  # ID of related record (purchase, sale, etc.)
     reference_type: Optional[str] = None  # Type of related record
