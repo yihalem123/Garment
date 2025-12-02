@@ -52,7 +52,13 @@ async def get_business_dashboard(
     if not start_date:
         start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
     
-    # Build date filter
+    # Parse dates to datetime objects for timestamp comparisons
+    start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+    end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
+    # Add one day to end_date to include the entire end date
+    end_datetime = end_datetime.replace(hour=23, minute=59, second=59)
+    
+    # Build date filter (for string date fields like sale_date)
     date_filter = and_(
         Sale.sale_date >= start_date,
         Sale.sale_date <= end_date
@@ -157,12 +163,12 @@ async def get_business_dashboard(
     purchases_result = await db.execute(purchases_query)
     purchases_stats = purchases_result.first()
     
-    # Total transfers
+    # Total transfers (use datetime for timestamp column)
     transfers_query = select(
         func.count(StockMovement.id).label("total_transfers")
     ).where(and_(
-        StockMovement.created_at >= start_date,
-        StockMovement.created_at <= end_date,
+        StockMovement.created_at >= start_datetime,
+        StockMovement.created_at <= end_datetime,
         or_(
             StockMovement.reason == MovementReason.TRANSFER_IN,
             StockMovement.reason == MovementReason.TRANSFER_OUT
