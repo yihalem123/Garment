@@ -3,7 +3,7 @@ Application configuration settings
 """
 from typing import List
 
-from pydantic import field_validator
+from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -34,21 +34,27 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    # CORS - accepts comma-separated string or list
-    ALLOWED_HOSTS: List[str] = ["*"]
+    # CORS - stored as string, converted to list via property
+    # Accept both ALLOWED_HOSTS and ALLOWED_HOSTS_STR from environment
+    ALLOWED_HOSTS_STR: str = "*"
     
-    @field_validator("ALLOWED_HOSTS", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def parse_allowed_hosts(cls, v):
-        """Parse ALLOWED_HOSTS from string or list"""
-        if isinstance(v, str):
-            # Handle comma-separated string
-            if v == "*":
-                return ["*"]
-            return [host.strip() for host in v.split(",") if host.strip()]
-        if isinstance(v, list):
-            return v
-        return [str(v)]
+    def map_allowed_hosts(cls, data):
+        """Map ALLOWED_HOSTS env var to ALLOWED_HOSTS_STR"""
+        if isinstance(data, dict):
+            # Handle both ALLOWED_HOSTS and ALLOWED_HOSTS_STR
+            if "ALLOWED_HOSTS" in data and "ALLOWED_HOSTS_STR" not in data:
+                data["ALLOWED_HOSTS_STR"] = data.pop("ALLOWED_HOSTS")
+        return data
+    
+    @computed_field
+    @property
+    def ALLOWED_HOSTS(self) -> List[str]:
+        """Parse ALLOWED_HOSTS from comma-separated string"""
+        if self.ALLOWED_HOSTS_STR == "*":
+            return ["*"]
+        return [host.strip() for host in self.ALLOWED_HOSTS_STR.split(",") if host.strip()]
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

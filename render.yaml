@@ -18,8 +18,8 @@ services:
         value: production
       - key: DEBUG
         value: "false"
-      - key: ALLOWED_HOSTS
-        value: "*"  # Update with your frontend domain in production
+      - key: ALLOWED_HOSTS_STR
+        value: "*"  # Update with your frontend domain in production (comma-separated)
 
 databases:
   - name: garment-db
