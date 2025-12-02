@@ -17,6 +17,10 @@ class StockItemResponse(BaseModel):
     reserved_quantity: Decimal
     min_stock_level: Decimal
     available_quantity: Decimal  # quantity - reserved_quantity
+    product_name: Optional[str] = None
+    product_sku: Optional[str] = None
+    raw_material_name: Optional[str] = None
+    shop_name: Optional[str] = None
     
     class Config:
         from_attributes = True

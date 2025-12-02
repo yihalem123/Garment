@@ -40,7 +40,7 @@ import {
   Add as AddIcon, 
   Delete as DeleteIcon,
   PointOfSale,
-  Receipt,
+  Receipt as ReceiptIcon,
   People,
   TrendingUp,
   AttachMoney,
@@ -53,6 +53,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import Receipt from '../../components/Receipt/Receipt';
 import toast from 'react-hot-toast';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -64,21 +65,29 @@ interface Sale {
   id: number;
   sale_number: string;
   shop_id: number;
-  customer_name: string;
-  customer_phone: string;
+  customer_name?: string;
+  customer_phone?: string;
   total_amount: number;
   discount_amount: number;
   final_amount: number;
   status: string;
   sale_date: string;
-  notes: string;
+  notes?: string;
   created_at: string;
   sale_lines: SaleLine[];
   payments: Payment[];
+  payment_method?: string;
+  shop?: {
+    name: string;
+    address?: string;
+    phone?: string;
+  };
 }
 
 interface SaleLine {
+  id: number;
   product_id: number;
+  product_name: string;
   quantity: number;
   unit_price: number;
   total_price: number;
@@ -95,6 +104,8 @@ interface Payment {
 const Sales: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [quickSaleOpen, setQuickSaleOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [saleLines, setSaleLines] = useState<SaleLine[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -175,7 +186,9 @@ const Sales: React.FC = () => {
 
   const addSaleLine = () => {
     setSaleLines([...saleLines, {
+      id: Date.now(), // Temporary ID
       product_id: 1,
+      product_name: '',
       quantity: 1,
       unit_price: 0,
       total_price: 0,
@@ -244,6 +257,25 @@ const Sales: React.FC = () => {
     { field: 'final_amount', headerName: 'Final Amount', width: 120, type: 'number' },
     { field: 'status', headerName: 'Status', width: 100 },
     { field: 'sale_date', headerName: 'Sale Date', width: 120 },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      width: 120,
+      renderCell: (params) => (
+        <Box>
+          <IconButton
+            size="small"
+            onClick={() => {
+              setSelectedSale(params.row);
+              setReceiptOpen(true);
+            }}
+            color="primary"
+          >
+            <ReceiptIcon />
+          </IconButton>
+        </Box>
+      ),
+    },
   ];
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -283,7 +315,7 @@ const Sales: React.FC = () => {
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button
             variant="outlined"
-            startIcon={<Receipt />}
+            startIcon={<ReceiptIcon />}
             onClick={() => setQuickSaleOpen(true)}
           >
             Quick Sale
@@ -401,7 +433,7 @@ const Sales: React.FC = () => {
                 width: 150,
                 renderCell: (params) => (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Receipt fontSize="small" color="primary" />
+                    <ReceiptIcon fontSize="small" color="primary" />
                     <Typography variant="body2" fontWeight="bold">
                       {params.value}
                     </Typography>
@@ -842,6 +874,13 @@ const Sales: React.FC = () => {
           <Button variant="contained">Process Sale</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Receipt Dialog */}
+      <Receipt
+        open={receiptOpen}
+        onClose={() => setReceiptOpen(false)}
+        sale={selectedSale}
+      />
     </Box>
   );
 };

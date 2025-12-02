@@ -45,6 +45,7 @@ import {
 } from '@mui/icons-material';
 import { useQuery } from 'react-query';
 import { api } from '../../services/api';
+import PrintableReport from '../../components/PrintableReport/PrintableReport';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -59,6 +60,9 @@ const Finance: React.FC = () => {
   });
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printData, setPrintData] = useState<any>(null);
+  const [printTitle, setPrintTitle] = useState('');
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', {
@@ -142,6 +146,12 @@ const Finance: React.FC = () => {
     console.log('Exporting financial reports...');
   };
 
+  const handlePrintReport = (type: string, data: any, title: string) => {
+    setPrintData(data);
+    setPrintTitle(title);
+    setPrintDialogOpen(true);
+  };
+
   if (plLoading || cfLoading || bsLoading || ratiosLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -169,6 +179,13 @@ const Finance: React.FC = () => {
                 <Refresh />
               </IconButton>
             </Tooltip>
+            <Button
+              variant="outlined"
+              startIcon={<Assessment />}
+              onClick={() => handlePrintReport('financial', plStatement, 'Profit & Loss Statement')}
+            >
+              Print P&L
+            </Button>
             <Button
               variant="contained"
               startIcon={<Download />}
@@ -634,6 +651,15 @@ const Finance: React.FC = () => {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Printable Report Dialog */}
+        <PrintableReport
+          open={printDialogOpen}
+          onClose={() => setPrintDialogOpen(false)}
+          title={printTitle}
+          data={printData}
+          type="financial"
+        />
       </Box>
     </LocalizationProvider>
   );

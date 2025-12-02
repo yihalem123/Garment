@@ -31,7 +31,7 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   
   const { data: dashboardData, isLoading } = useQuery(
-    'dashboard',
+    ['dashboard', user?.shop_id, user?.role],
     async () => {
       try {
         // For shop managers, get shop-specific data
@@ -39,45 +39,43 @@ const Dashboard: React.FC = () => {
           ? `/analytics/dashboard?shop_id=${user.shop_id}`
           : '/analytics/dashboard';
         const response = await api.get(endpoint);
+        console.log('Dashboard API response:', response.data);
         return response.data;
       } catch (error) {
         // Return mock data if API fails
         console.warn('API not available, using mock data:', error);
+        const isShopManager = user?.role === 'shop_manager';
         return {
-          total_sales: user?.role === 'shop_manager' ? 45000 : 125000,
-          total_purchases: user?.role === 'shop_manager' ? 32000 : 85000,
-          total_products: user?.role === 'shop_manager' ? 45 : 150,
-          total_customers: user?.role === 'shop_manager' ? 25 : 89
+          total_sales: isShopManager ? 45000 : 125000,
+          total_purchases: isShopManager ? 32000 : 85000,
+          total_production: isShopManager ? 45 : 150,
+          total_transfers: user?.role === 'shop_manager' ? 12 : 35,
+          low_stock_items: user?.role === 'shop_manager' ? 3 : 8,
+          recent_sales: [],
+          sales_trend: [
+            { month: 'Jan', sales: 12000, purchases: 8000 },
+            { month: 'Feb', sales: 15000, purchases: 9500 },
+            { month: 'Mar', sales: 18000, purchases: 11000 },
+            { month: 'Apr', sales: 16000, purchases: 10000 },
+            { month: 'May', sales: 20000, purchases: 12000 },
+            { month: 'Jun', sales: 22000, purchases: 13000 },
+          ],
+          top_products: [
+            { name: 'Cotton T-Shirt', sales: 150, revenue: 7500 },
+            { name: 'Denim Jeans', sales: 89, revenue: 8900 },
+            { name: 'Wool Sweater', sales: 45, revenue: 4500 },
+          ]
         };
       }
     }
   );
 
-  const { data: profitLossData } = useQuery(
-    'profitLoss',
-    async () => {
-      try {
-        const response = await api.get('/analytics/profit-loss');
-        return response.data;
-      } catch (error) {
-        // Return mock data if API fails
-        console.warn('API not available, using mock data:', error);
-        return [
-          { month: 'Jan', sales: 12000, purchases: 8000 },
-          { month: 'Feb', sales: 15000, purchases: 9500 },
-          { month: 'Mar', sales: 18000, purchases: 11000 },
-          { month: 'Apr', sales: 16000, purchases: 10000 },
-          { month: 'May', sales: 20000, purchases: 12000 },
-          { month: 'Jun', sales: 22000, purchases: 13000 },
-        ];
-      }
-    }
-  );
+  // Removed profitLossData query as we now get profit_margin from dashboard data
 
   const statsCards = [
     {
       title: 'Total Sales',
-      value: dashboardData?.total_sales || 0,
+      value: typeof dashboardData?.total_sales === 'number' ? dashboardData.total_sales : 0,
       icon: <PointOfSale />,
       color: '#4CAF50',
       bgColor: '#E8F5E8',
@@ -86,7 +84,7 @@ const Dashboard: React.FC = () => {
     },
     {
       title: 'Total Purchases',
-      value: dashboardData?.total_purchases || 0,
+      value: typeof dashboardData?.total_purchases === 'number' ? dashboardData.total_purchases : 0,
       icon: <ShoppingCart />,
       color: '#FF9800',
       bgColor: '#FFF3E0',
@@ -95,7 +93,7 @@ const Dashboard: React.FC = () => {
     },
     {
       title: 'Production Units',
-      value: dashboardData?.total_production || 0,
+      value: typeof dashboardData?.total_production === 'number' ? dashboardData.total_production : 0,
       icon: <Factory />,
       color: '#2196F3',
       bgColor: '#E3F2FD',
@@ -104,7 +102,7 @@ const Dashboard: React.FC = () => {
     },
     {
       title: 'Transfers',
-      value: dashboardData?.total_transfers || 0,
+      value: typeof dashboardData?.total_transfers === 'number' ? dashboardData.total_transfers : 0,
       icon: <LocalShipping />,
       color: '#9C27B0',
       bgColor: '#F3E5F5',
@@ -113,7 +111,7 @@ const Dashboard: React.FC = () => {
     },
     {
       title: 'Low Stock Items',
-      value: dashboardData?.low_stock_items || 0,
+      value: typeof dashboardData?.low_stock_items === 'number' ? dashboardData.low_stock_items : 0,
       icon: <Inventory />,
       color: '#F44336',
       bgColor: '#FFEBEE',
@@ -122,7 +120,7 @@ const Dashboard: React.FC = () => {
     },
     {
       title: 'Profit Margin',
-      value: `${profitLossData?.profit_margin || 0}%`,
+      value: `${typeof dashboardData?.profit_margin === 'number' ? dashboardData.profit_margin : 0}%`,
       icon: <AttachMoney />,
       color: '#4CAF50',
       bgColor: '#E8F5E8',
@@ -131,14 +129,17 @@ const Dashboard: React.FC = () => {
     },
   ];
 
-  const sampleChartData = [
-    { month: 'Jan', sales: 4000, purchases: 3000 },
-    { month: 'Feb', sales: 3000, purchases: 2000 },
-    { month: 'Mar', sales: 5000, purchases: 4000 },
-    { month: 'Apr', sales: 4500, purchases: 3500 },
-    { month: 'May', sales: 6000, purchases: 4500 },
-    { month: 'Jun', sales: 5500, purchases: 4000 },
-  ];
+  // Use real chart data from API or fallback to sample data
+  const chartData = dashboardData?.sales_trend && dashboardData.sales_trend.length > 0 
+    ? dashboardData.sales_trend 
+    : [
+        { month: 'Jan', sales: 4000, purchases: 3000 },
+        { month: 'Feb', sales: 3000, purchases: 2000 },
+        { month: 'Mar', sales: 5000, purchases: 4000 },
+        { month: 'Apr', sales: 4500, purchases: 3500 },
+        { month: 'May', sales: 6000, purchases: 4500 },
+        { month: 'Jun', sales: 5500, purchases: 4000 },
+      ];
 
   if (isLoading) {
     return <div>Loading dashboard...</div>;
@@ -147,12 +148,30 @@ const Dashboard: React.FC = () => {
   return (
     <Box>
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
-          Dashboard
-        </Typography>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h4" sx={{ fontWeight: 600, color: 'text.primary' }}>
+            Dashboard
+          </Typography>
+          {user?.shop && (
+            <Chip
+              icon={<Avatar sx={{ width: 20, height: 20, bgcolor: 'primary.main' }}>
+                {user.shop.name.charAt(0)}
+              </Avatar>}
+              label={`${user.shop.name}`}
+              color="primary"
+              variant="outlined"
+              sx={{ fontWeight: 'bold' }}
+            />
+          )}
+        </Box>
         <Typography variant="body1" color="text.secondary">
-          Welcome back! Here's what's happening with your business today.
+          Welcome back{user?.shop ? ` to ${user.shop.name}` : ''}! Here's what's happening with your business today.
         </Typography>
+        {user?.role === 'shop_manager' && (
+          <Typography variant="body2" color="info.main" sx={{ mt: 1, fontStyle: 'italic' }}>
+            📍 Shop Manager View - Data filtered for your assigned shop
+          </Typography>
+        )}
       </Box>
       
       <Grid container spacing={3}>
@@ -214,7 +233,7 @@ const Dashboard: React.FC = () => {
                 <Chip label="Last 6 months" size="small" variant="outlined" />
               </Box>
               <ResponsiveContainer width="100%" height={isMobile ? 250 : 300}>
-                <LineChart data={sampleChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis 
                     dataKey="month" 
@@ -265,7 +284,7 @@ const Dashboard: React.FC = () => {
                 <Chip label="2024" size="small" variant="outlined" />
               </Box>
               <ResponsiveContainer width="100%" height={isMobile ? 250 : 300}>
-                <BarChart data={sampleChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis 
                     dataKey="month" 
@@ -304,8 +323,8 @@ const Dashboard: React.FC = () => {
                 </Typography>
                 <Chip label="Live" size="small" color="success" />
               </Box>
-              {dashboardData?.recent_activities ? (
-                dashboardData.recent_activities.map((activity: any, index: number) => (
+              {dashboardData?.recent_sales && dashboardData.recent_sales.length > 0 ? (
+                dashboardData.recent_sales.map((sale: any, index: number) => (
                   <Box 
                     key={index} 
                     sx={{ 
@@ -322,10 +341,10 @@ const Dashboard: React.FC = () => {
                     }}
                   >
                     <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
-                      {activity.description}
+                      Sale to {sale.customer_name} - ETB {sale.total_amount?.toLocaleString()}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {new Date(activity.timestamp).toLocaleString()}
+                      {new Date(sale.sale_date).toLocaleString()}
                     </Typography>
                   </Box>
                 ))

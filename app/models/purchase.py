@@ -24,6 +24,7 @@ class Purchase(SQLModel, table=True):
     __tablename__ = "purchases"
     
     id: Optional[int] = Field(default=None, primary_key=True)
+    order_id: str = Field(unique=True, index=True)  # Auto-generated order ID
     supplier_name: str
     supplier_invoice: Optional[str] = None
     total_amount: Decimal = Field(decimal_places=2)
@@ -44,7 +45,9 @@ class PurchaseLine(SQLModel, table=True):
     
     id: Optional[int] = Field(default=None, primary_key=True)
     purchase_id: int = Field(foreign_key="purchases.id")
-    raw_material_id: int = Field(foreign_key="raw_materials.id")
+    raw_material_id: Optional[int] = Field(default=None, foreign_key="raw_materials.id")
+    item_name: Optional[str] = None  # For custom items
+    item_description: Optional[str] = None  # For custom items
     quantity: Decimal = Field(decimal_places=3)
     unit_price: Decimal = Field(decimal_places=2)
     total_price: Decimal = Field(decimal_places=2)

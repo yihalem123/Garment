@@ -13,7 +13,8 @@ from app.db.session import get_session
 from app.models import (
     User, Sale, SaleLine, Purchase, PurchaseLine, ProductionRun, 
     Payment, StockItem, Shop, Product, RawMaterial,
-    ItemType, MovementReason, SaleStatus, ProductionStatus, PaymentMethod
+    ItemType, MovementReason, SaleStatus, ProductionStatus, PaymentMethod,
+    PayrollRecord, PayrollStatus
 )
 from app.api.routes.auth import get_current_user
 
@@ -133,11 +134,24 @@ async def get_profit_loss_statement(
     total_labor_cost = production_costs.labor_cost or 0
     total_overhead_cost = production_costs.overhead_cost or 0
     
+    # Get salary costs from payroll records
+    salary_costs_query = select(
+        func.sum(PayrollRecord.net_pay)
+    ).where(
+        and_(
+            PayrollRecord.payment_date >= start_date,
+            PayrollRecord.payment_date <= end_date,
+            PayrollRecord.status == PayrollStatus.PAID
+        )
+    )
+    salary_costs_result = await db.execute(salary_costs_query)
+    total_salary_costs = salary_costs_result.scalar_one_or_none() or 0
+    
     # Calculate profits
     gross_profit = total_revenue - total_cogs
     gross_profit_margin = (gross_profit / total_revenue * 100) if total_revenue > 0 else 0
     
-    total_operating_expenses = total_purchase_costs + total_labor_cost + total_overhead_cost
+    total_operating_expenses = total_purchase_costs + total_labor_cost + total_overhead_cost + total_salary_costs
     net_profit = gross_profit - total_operating_expenses
     net_profit_margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
     
@@ -173,6 +187,7 @@ async def get_profit_loss_statement(
             "raw_material_purchases": float(total_purchase_costs),
             "labor_costs": float(total_labor_cost),
             "overhead_costs": float(total_overhead_cost),
+            "salary_costs": float(total_salary_costs),
             "total_operating_expenses": float(total_operating_expenses)
         },
         "net_profit": {
@@ -497,7 +512,7 @@ async def get_financial_ratios(
     avg_inventory_result = await db.execute(avg_inventory_query)
     avg_inventory = avg_inventory_result.scalar_one_or_none() or 1
     
-    inventory_turnover = cogs / avg_inventory if avg_inventory > 0 else 0
+    inventory_turnover = float(cogs) / float(avg_inventory) if avg_inventory > 0 else 0
     
     # Sales per transaction
     transaction_count_query = select(func.count(Sale.id)).where(sales_filter)

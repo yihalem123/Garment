@@ -39,7 +39,6 @@ interface Product {
   description: string;
   category: string;
   unit_price: number;
-  cost_price: number;
   is_active: boolean;
   created_at: string;
 }
@@ -53,9 +52,12 @@ const Products: React.FC = () => {
     description: '',
     category: '',
     unit_price: 0,
-    cost_price: 0,
     is_active: true,
   });
+
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
 
   const queryClient = useQueryClient();
   const theme = useTheme();
@@ -78,7 +80,6 @@ const Products: React.FC = () => {
             description: 'High quality cotton t-shirt',
             category: 'T-Shirts',
             unit_price: 25.99,
-            cost_price: 15.50,
             is_active: true,
             created_at: '2024-01-01T00:00:00Z'
           },
@@ -89,7 +90,6 @@ const Products: React.FC = () => {
             description: 'Classic blue denim jeans',
             category: 'Jeans',
             unit_price: 49.99,
-            cost_price: 28.00,
             is_active: true,
             created_at: '2024-01-02T00:00:00Z'
           },
@@ -100,9 +100,28 @@ const Products: React.FC = () => {
             description: 'Warm wool sweater for winter',
             category: 'Sweaters',
             unit_price: 79.99,
-            cost_price: 45.00,
             is_active: false,
             created_at: '2024-01-03T00:00:00Z'
+          },
+          {
+            id: 4,
+            name: 'Leather Jacket',
+            sku: 'JKT-004',
+            description: 'Premium leather jacket',
+            category: 'Jackets',
+            unit_price: 199.99,
+            is_active: true,
+            created_at: '2024-01-04T00:00:00Z'
+          },
+          {
+            id: 5,
+            name: 'Running Shoes',
+            sku: 'SHO-005',
+            description: 'Comfortable running shoes',
+            category: 'Shoes',
+            unit_price: 89.99,
+            is_active: true,
+            created_at: '2024-01-05T00:00:00Z'
           }
         ];
       }
@@ -152,7 +171,6 @@ const Products: React.FC = () => {
         description: product.description,
         category: product.category,
         unit_price: product.unit_price,
-        cost_price: product.cost_price,
         is_active: product.is_active,
       });
     } else {
@@ -163,7 +181,6 @@ const Products: React.FC = () => {
         description: '',
         category: '',
         unit_price: 0,
-        cost_price: 0,
         is_active: true,
       });
     }
@@ -245,14 +262,14 @@ const Products: React.FC = () => {
         </Typography>
       ),
     },
-    { 
-      field: 'cost_price', 
-      headerName: 'Cost Price', 
-      width: 130, 
-      type: 'number',
+    {
+      field: 'created_at',
+      headerName: 'Created',
+      width: 120,
+      type: 'date',
       renderCell: (params) => (
-        <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
-          ${typeof params.value === 'number' ? params.value.toFixed(2) : '0.00'}
+        <Typography variant="body2" color="text.secondary">
+          {new Date(params.value).toLocaleDateString()}
         </Typography>
       ),
     },
@@ -379,6 +396,68 @@ const Products: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
+
+        {/* Search and Filter Bar */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent sx={{ p: 2 }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: <Typography sx={{ mr: 1, color: 'text.secondary' }}>🔍</Typography>,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  select
+                  label="Category"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  SelectProps={{
+                    native: true,
+                  }}
+                >
+                  <option value="">All Categories</option>
+                  {Array.from(new Set(products?.map((p: Product) => p.category) || [])).map((category) => (
+                    <option key={String(category)} value={String(category)}>
+                      {String(category)}
+                    </option>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={12} md={4}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCategoryFilter('');
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={() => setOpen(true)}
+                    startIcon={<AddIcon />}
+                  >
+                    Add Product
+                  </Button>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
       </Box>
 
       {/* Data Table */}
@@ -386,7 +465,16 @@ const Products: React.FC = () => {
         <CardContent sx={{ p: 0 }}>
           <Box sx={{ height: isMobile ? 500 : 600, width: '100%' }}>
             <DataGrid
-              rows={products || []}
+              rows={products?.filter((product: Product) => {
+                const matchesSearch = searchTerm === '' || 
+                  product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  product.description.toLowerCase().includes(searchTerm.toLowerCase());
+                
+                const matchesCategory = categoryFilter === '' || product.category === categoryFilter;
+                
+                return matchesSearch && matchesCategory;
+              }) || []}
               columns={columns}
               loading={isLoading}
               pageSizeOptions={[10, 25, 50]}
@@ -531,15 +619,12 @@ const Products: React.FC = () => {
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="Cost Price"
-                  type="number"
-                  value={formData.cost_price}
-                  onChange={(e) => setFormData({ ...formData, cost_price: parseFloat(e.target.value) })}
+                  label="Category"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   required
                   variant="outlined"
-                  InputProps={{
-                    startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
-                  }}
+                  placeholder="e.g., T-Shirts, Jeans, Shoes"
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -569,6 +654,62 @@ const Products: React.FC = () => {
                       </Box>
                     }
                   />
+                </Box>
+              </Grid>
+              
+              {/* Product Summary */}
+              <Grid item xs={12}>
+                <Box sx={{ 
+                  p: 3, 
+                  border: '1px solid', 
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(0,0,0,0.02)',
+                  textAlign: 'center',
+                }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    Product Summary
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Selling Price
+                      </Typography>
+                      <Typography 
+                        variant="h5" 
+                        sx={{ 
+                          fontWeight: 700, 
+                          color: 'primary.main'
+                        }}
+                      >
+                        ${formData.unit_price.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        SKU
+                      </Typography>
+                      <Typography 
+                        variant="h6" 
+                        sx={{ 
+                          fontWeight: 600, 
+                          color: 'text.primary'
+                        }}
+                      >
+                        {formData.sku || 'Auto-generated'}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Status
+                      </Typography>
+                      <Chip 
+                        label={formData.is_active ? 'Active' : 'Inactive'} 
+                        color={formData.is_active ? 'success' : 'error'} 
+                        size="small" 
+                      />
+                    </Box>
+                  </Box>
                 </Box>
               </Grid>
             </Grid>

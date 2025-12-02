@@ -110,8 +110,13 @@ async def create_purchase(
         for line in purchase_data.purchase_lines
     )
     
+    # Generate order ID
+    from datetime import datetime
+    order_id = f"PO-{datetime.now().strftime('%Y%m%d')}-{datetime.now().strftime('%H%M%S')}"
+    
     # Create purchase
     db_purchase = Purchase(
+        order_id=order_id,
         supplier_name=purchase_data.supplier_name,
         supplier_invoice=purchase_data.supplier_invoice,
         total_amount=total_amount,
@@ -129,46 +134,51 @@ async def create_purchase(
         purchase_line = PurchaseLine(
             purchase_id=db_purchase.id,
             raw_material_id=line_data.raw_material_id,
+            item_name=line_data.item_name,
+            item_description=line_data.item_description,
             quantity=line_data.quantity,
             unit_price=line_data.unit_price,
             total_price=line_data.quantity * line_data.unit_price
         )
         db.add(purchase_line)
         
-        # Find or create stock item
-        statement = select(StockItem).where(
-            StockItem.raw_material_id == line_data.raw_material_id,
-            StockItem.item_type == ItemType.RAW_MATERIAL
-        )
-        result = await db.execute(statement)
-        stock_item = result.scalar_one_or_none()
-        
-        if not stock_item:
-            # Create new stock item (assuming shop_id=1 for main warehouse)
-            stock_item = StockItem(
+        # Only update stock if it's a raw material (not a custom item)
+        if line_data.raw_material_id:
+            # Find or create stock item (include shop_id to avoid multiple results)
+            statement = select(StockItem).where(
+                StockItem.raw_material_id == line_data.raw_material_id,
+                StockItem.item_type == ItemType.RAW_MATERIAL,
+                StockItem.shop_id == 1  # Main warehouse
+            )
+            result = await db.execute(statement)
+            stock_item = result.scalar_one_or_none()
+            
+            if not stock_item:
+                # Create new stock item (assuming shop_id=1 for main warehouse)
+                stock_item = StockItem(
+                    shop_id=1,  # Main warehouse
+                    item_type=ItemType.RAW_MATERIAL,
+                    raw_material_id=line_data.raw_material_id,
+                    quantity=line_data.quantity,
+                    reserved_quantity=Decimal('0'),
+                    min_stock_level=Decimal('10')
+                )
+                db.add(stock_item)
+            else:
+                # Update existing stock
+                stock_item.quantity += line_data.quantity
+            
+            # Create stock movement
+            stock_movement = StockMovement(
                 shop_id=1,  # Main warehouse
                 item_type=ItemType.RAW_MATERIAL,
                 raw_material_id=line_data.raw_material_id,
                 quantity=line_data.quantity,
-                reserved_quantity=Decimal('0'),
-                min_stock_level=Decimal('10')
+                reason=MovementReason.PURCHASE,
+                reference_id=db_purchase.id,
+                reference_type="purchase"
             )
-            db.add(stock_item)
-        else:
-            # Update existing stock
-            stock_item.quantity += line_data.quantity
-        
-        # Create stock movement
-        stock_movement = StockMovement(
-            shop_id=1,  # Main warehouse
-            item_type=ItemType.RAW_MATERIAL,
-            raw_material_id=line_data.raw_material_id,
-            quantity=line_data.quantity,
-            reason=MovementReason.PURCHASE,
-            reference_id=db_purchase.id,
-            reference_type="purchase"
-        )
-        db.add(stock_movement)
+            db.add(stock_movement)
     
     await db.commit()
     await db.refresh(db_purchase)

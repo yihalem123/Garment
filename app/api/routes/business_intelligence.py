@@ -82,7 +82,7 @@ async def get_key_performance_indicators(
      .order_by(Sale.sale_date)
     
     daily_sales_result = await db.execute(daily_sales_query)
-    daily_sales = daily_sales_result.scalars().all()
+    daily_sales = daily_sales_result.all()
     
     # Inventory KPIs
     inventory_kpis_query = select(
@@ -143,9 +143,9 @@ async def get_key_performance_indicators(
             "min_transaction_value": float(sales_kpis.min_transaction_value or 0),
             "daily_sales_trend": [
                 {
-                    "date": str(daily_sale.sale_date),
-                    "transactions": daily_sale.daily_transactions,
-                    "revenue": float(daily_sale.daily_revenue)
+                    "date": str(daily_sale[0]),
+                    "transactions": daily_sale[1],
+                    "revenue": float(daily_sale[2])
                 }
                 for daily_sale in daily_sales
             ]

@@ -124,7 +124,7 @@ async def get_business_dashboard(
     production_stats = production_result.first()
     
     # Recent Activities
-    recent_sales_query = select(Sale).where(date_filter)\
+    recent_sales_query = select(Sale).options(selectinload(Sale.shop)).where(date_filter)\
         .order_by(desc(Sale.created_at)).limit(5)
     recent_sales = await db.execute(recent_sales_query)
     recent_sales_list = recent_sales.scalars().all()
@@ -141,63 +141,113 @@ async def get_business_dashboard(
     employee_costs_result = await db.execute(employee_costs_query)
     employee_costs_stats = employee_costs_result.first()
     
+    # Get additional metrics for dashboard
+    # Total purchases
+    purchases_query = select(
+        func.count(Purchase.id).label("total_purchases"),
+        func.sum(Purchase.total_amount).label("total_purchase_amount")
+    ).where(and_(
+        Purchase.purchase_date >= start_date,
+        Purchase.purchase_date <= end_date
+    ))
+    
+    if shop_id:
+        purchases_query = purchases_query.where(Purchase.shop_id == shop_id)
+    
+    purchases_result = await db.execute(purchases_query)
+    purchases_stats = purchases_result.first()
+    
+    # Total transfers
+    transfers_query = select(
+        func.count(StockMovement.id).label("total_transfers")
+    ).where(and_(
+        StockMovement.created_at >= start_date,
+        StockMovement.created_at <= end_date,
+        or_(
+            StockMovement.reason == MovementReason.TRANSFER_IN,
+            StockMovement.reason == MovementReason.TRANSFER_OUT
+        )
+    ))
+    
+    if shop_id:
+        transfers_query = transfers_query.where(StockMovement.shop_id == shop_id)
+    
+    transfers_result = await db.execute(transfers_query)
+    transfers_stats = transfers_result.first()
+    
+    # Sales trend data for charts (SQLite compatible)
+    sales_trend_query = select(
+        func.strftime('%Y-%m', Sale.sale_date).label('month'),
+        func.sum(Sale.final_amount).label('sales'),
+        func.count(Sale.id).label('transactions')
+    ).where(and_(
+        Sale.sale_date >= start_date,
+        Sale.sale_date <= end_date,
+        Sale.status == SaleStatus.COMPLETED
+    )).group_by(func.strftime('%Y-%m', Sale.sale_date)).order_by('month')
+    
+    if shop_id:
+        sales_trend_query = sales_trend_query.where(Sale.shop_id == shop_id)
+    
+    sales_trend_result = await db.execute(sales_trend_query)
+    sales_trend_data = sales_trend_result.all()
+    
+    # Format sales trend for frontend
+    formatted_sales_trend = []
+    for trend in sales_trend_data:
+        # Convert YYYY-MM format to month name
+        month_name = datetime.strptime(trend.month, '%Y-%m').strftime('%b')
+        formatted_sales_trend.append({
+            'month': month_name,
+            'sales': float(trend.sales or 0),
+            'purchases': 0,  # Will be filled separately
+            'transactions': trend.transactions or 0
+        })
+    
+    # Calculate profit margin
+    total_revenue = float(sales_stats.total_revenue or 0)
+    total_purchase_amount = float(purchases_stats.total_purchase_amount or 0)
+    profit_margin = 0
+    if total_revenue > 0:
+        profit_margin = ((total_revenue - total_purchase_amount) / total_revenue) * 100
+
     return {
-        "period": {
-            "start_date": start_date,
-            "end_date": end_date
-        },
-        "sales_performance": {
-            "total_sales": sales_stats.total_sales or 0,
-            "total_revenue": float(sales_stats.total_revenue or 0),
-            "average_sale_amount": float(sales_stats.avg_sale_amount or 0)
-        },
-        "inventory_status": {
-            "total_items": inventory_stats.total_items or 0,
-            "total_quantity": float(inventory_stats.total_quantity or 0),
-            "low_stock_items": len(low_stock_list)
-        },
-        "production_metrics": {
-            "total_runs": production_stats.total_runs or 0,
-            "total_planned_quantity": float(production_stats.total_planned or 0),
-            "total_actual_quantity": float(production_stats.total_actual or 0),
-            "total_production_cost": float(production_stats.total_cost or 0)
-        },
+        # Main dashboard metrics that frontend expects
+        "total_sales": float(sales_stats.total_revenue or 0),
+        "total_purchases": float(purchases_stats.total_purchase_amount or 0),
+        "total_production": production_stats.total_runs or 0,
+        "total_transfers": transfers_stats.total_transfers or 0,
+        "low_stock_items": len(low_stock_list),
+        "profit_margin": round(profit_margin, 2),
+        
+        # Chart data
+        "sales_trend": formatted_sales_trend,
         "top_products": [
             {
                 "name": product.name,
-                "sku": product.sku,
-                "total_quantity": float(product.total_quantity),
-                "total_revenue": float(product.total_revenue)
+                "sales": product.total_quantity,
+                "revenue": float(product.total_revenue)
             }
             for product in top_products_list
         ],
-        "low_stock_alerts": [
-            {
-                "id": item.id,
-                "item_type": item.item_type,
-                "product_id": item.product_id,
-                "raw_material_id": item.raw_material_id,
-                "current_quantity": float(item.quantity),
-                "min_stock_level": float(item.min_stock_level),
-                "shop_id": item.shop_id
-            }
-            for item in low_stock_list
-        ],
-        "recent_activities": [
+        
+        # Additional data
+        "recent_sales": [
             {
                 "id": sale.id,
-                "sale_number": sale.sale_number,
                 "customer_name": sale.customer_name,
-                "final_amount": float(sale.final_amount),
-                "sale_date": sale.sale_date,
-                "shop_id": sale.shop_id
+                "total_amount": float(sale.final_amount),
+                "sale_date": sale.sale_date if isinstance(sale.sale_date, str) else sale.sale_date.isoformat(),
+                "status": sale.status.value,
+                "shop_name": sale.shop.name if sale.shop else "Unknown"
             }
             for sale in recent_sales_list
         ],
-        "monthly_costs": {
-            "total_employee_salary": float(employee_costs_stats.total_monthly_salary or 0),
-            "employee_count": employee_costs_stats.employee_count or 0,
-            "average_salary": float(employee_costs_stats.total_monthly_salary or 0) / max(employee_costs_stats.employee_count or 1, 1)
+        
+        # Period info
+        "period": {
+            "start_date": start_date,
+            "end_date": end_date
         }
     }
 

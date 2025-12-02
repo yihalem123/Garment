@@ -7,11 +7,27 @@ from typing import List
 from pydantic_settings import BaseSettings
 
 
+def convert_postgres_url(url: str) -> str:
+    """
+    Convert postgres:// URL to postgresql+asyncpg:// format for async SQLAlchemy
+    Render provides postgres:// URLs, but async SQLAlchemy needs postgresql+asyncpg://
+    """
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+asyncpg://", 1)
+    return url
+
+
 class Settings(BaseSettings):
     """Application settings"""
     
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./garment.db"
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Convert postgres:// to postgresql+asyncpg:// for async support
+        if self.DATABASE_URL.startswith("postgres://"):
+            self.DATABASE_URL = convert_postgres_url(self.DATABASE_URL)
     
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"

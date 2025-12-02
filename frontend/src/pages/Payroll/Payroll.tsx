@@ -56,6 +56,7 @@ import {
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { api } from '../../services/api';
+import PrintableReport from '../../components/PrintableReport/PrintableReport';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -124,6 +125,9 @@ const Payroll: React.FC = () => {
     payment_date: dayjs().format('YYYY-MM-DD'),
     notes: '',
   });
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printData, setPrintData] = useState<any>(null);
+  const [printTitle, setPrintTitle] = useState('');
 
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -318,6 +322,12 @@ const Payroll: React.FC = () => {
     }
   };
 
+  const handlePrintReport = (type: string, data: any, title: string) => {
+    setPrintData(data);
+    setPrintTitle(title);
+    setPrintDialogOpen(true);
+  };
+
   const columns: GridColDef[] = [
     {
       field: 'employee_name',
@@ -430,6 +440,13 @@ const Payroll: React.FC = () => {
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Payroll Management</Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<Print />}
+            onClick={() => handlePrintReport('payroll', payrollRecords, 'Payroll Report')}
+          >
+            Print Report
+          </Button>
           <Button
             variant="outlined"
             startIcon={<Payment />}
@@ -748,6 +765,15 @@ const Payroll: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Printable Report Dialog */}
+      <PrintableReport
+        open={printDialogOpen}
+        onClose={() => setPrintDialogOpen(false)}
+        title={printTitle}
+        data={printData}
+        type="payroll"
+      />
     </Box>
   );
 };

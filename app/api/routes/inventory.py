@@ -5,7 +5,8 @@ from typing import List, Optional
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_session
 from app.models import StockItem, StockMovement, User, ItemType, MovementReason
@@ -40,7 +41,11 @@ async def get_stocks(
          -H "Authorization: Bearer <token>"
     ```
     """
-    statement = select(StockItem)
+    statement = select(StockItem).options(
+        selectinload(StockItem.product),
+        selectinload(StockItem.raw_material),
+        selectinload(StockItem.shop)
+    )
     
     conditions = []
     
@@ -79,11 +84,21 @@ async def get_stocks(
     stock_items = await db.execute(statement)
     results = stock_items.scalars().all()
     
-    # Add available_quantity field
+    # Add available_quantity field and related data
     response_items = []
     for item in results:
         item_dict = item.dict()
         item_dict["available_quantity"] = item.quantity - item.reserved_quantity
+        
+        # Add product/raw material name and shop name
+        if item.product:
+            item_dict["product_name"] = item.product.name
+            item_dict["product_sku"] = item.product.sku
+        if item.raw_material:
+            item_dict["raw_material_name"] = item.raw_material.name
+        if item.shop:
+            item_dict["shop_name"] = item.shop.name
+            
         response_items.append(StockItemResponse(**item_dict))
     
     return response_items
