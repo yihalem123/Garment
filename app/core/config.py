@@ -1,9 +1,9 @@
 """
 Application configuration settings
 """
-import os
 from typing import List
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -34,8 +34,21 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    # CORS
+    # CORS - accepts comma-separated string or list
     ALLOWED_HOSTS: List[str] = ["*"]
+    
+    @field_validator("ALLOWED_HOSTS", mode="before")
+    @classmethod
+    def parse_allowed_hosts(cls, v):
+        """Parse ALLOWED_HOSTS from string or list"""
+        if isinstance(v, str):
+            # Handle comma-separated string
+            if v == "*":
+                return ["*"]
+            return [host.strip() for host in v.split(",") if host.strip()]
+        if isinstance(v, list):
+            return v
+        return [str(v)]
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
