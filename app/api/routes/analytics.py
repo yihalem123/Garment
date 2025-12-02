@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, desc
+from sqlalchemy import select, func, and_, or_, desc, cast, Date
 from sqlalchemy.orm import selectinload
 
 from app.db.session import get_session
@@ -181,16 +181,17 @@ async def get_business_dashboard(
     transfers_result = await db.execute(transfers_query)
     transfers_stats = transfers_result.first()
     
-    # Sales trend data for charts (SQLite compatible)
+    # Sales trend data for charts (PostgreSQL compatible)
+    # Use to_char for PostgreSQL date formatting
     sales_trend_query = select(
-        func.strftime('%Y-%m', Sale.sale_date).label('month'),
+        func.to_char(cast(Sale.sale_date, Date), 'YYYY-MM').label('month'),
         func.sum(Sale.final_amount).label('sales'),
         func.count(Sale.id).label('transactions')
     ).where(and_(
         Sale.sale_date >= start_date,
         Sale.sale_date <= end_date,
         Sale.status == SaleStatus.COMPLETED
-    )).group_by(func.strftime('%Y-%m', Sale.sale_date)).order_by('month')
+    )).group_by(func.to_char(cast(Sale.sale_date, Date), 'YYYY-MM')).order_by('month')
     
     if shop_id:
         sales_trend_query = sales_trend_query.where(Sale.shop_id == shop_id)
