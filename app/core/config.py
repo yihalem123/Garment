@@ -1,10 +1,11 @@
 """
 Application configuration settings
 """
+import os
 from typing import List
 
-from pydantic import computed_field, model_validator
-from pydantic_settings import BaseSettings
+from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def convert_postgres_url(url: str) -> str:
@@ -24,7 +25,17 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./garment.db"
     
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        # Remove ALLOWED_HOSTS from environment temporarily to prevent pydantic-settings from parsing it
+        # We'll handle it manually and set ALLOWED_HOSTS_STR instead
+        allowed_hosts_env = os.environ.pop("ALLOWED_HOSTS", None)
+        if allowed_hosts_env and "ALLOWED_HOSTS_STR" not in kwargs and "ALLOWED_HOSTS_STR" not in os.environ:
+            os.environ["ALLOWED_HOSTS_STR"] = allowed_hosts_env
+        
+        try:
+            super().__init__(**kwargs)
+        finally:
+            # Don't restore ALLOWED_HOSTS - we don't want it in the environment
+        
         # Convert postgres:// to postgresql+asyncpg:// for async support
         if self.DATABASE_URL.startswith("postgres://"):
             self.DATABASE_URL = convert_postgres_url(self.DATABASE_URL)
@@ -48,7 +59,6 @@ class Settings(BaseSettings):
                 data["ALLOWED_HOSTS_STR"] = data.pop("ALLOWED_HOSTS")
         return data
     
-    @computed_field
     @property
     def ALLOWED_HOSTS(self) -> List[str]:
         """Parse ALLOWED_HOSTS from comma-separated string"""
@@ -74,9 +84,12 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",  # Ignore extra environment variables
+        env_ignore_empty=True,
+    )
 
 
 # Create settings instance
