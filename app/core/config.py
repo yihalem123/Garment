@@ -25,17 +25,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./garment.db"
     
     def __init__(self, **kwargs):
-        # Remove ALLOWED_HOSTS from environment temporarily to prevent pydantic-settings from parsing it
-        # We'll handle it manually and set ALLOWED_HOSTS_STR instead
-        allowed_hosts_env = os.environ.pop("ALLOWED_HOSTS", None)
-        if allowed_hosts_env and "ALLOWED_HOSTS_STR" not in kwargs and "ALLOWED_HOSTS_STR" not in os.environ:
-            os.environ["ALLOWED_HOSTS_STR"] = allowed_hosts_env
-        
-        try:
-            super().__init__(**kwargs)
-        finally:
-            # Don't restore ALLOWED_HOSTS - we don't want it in the environment
-        
+        super().__init__(**kwargs)
         # Convert postgres:// to postgresql+asyncpg:// for async support
         if self.DATABASE_URL.startswith("postgres://"):
             self.DATABASE_URL = convert_postgres_url(self.DATABASE_URL)
@@ -91,6 +81,12 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
     )
 
+
+# Remove ALLOWED_HOSTS from environment before creating Settings instance
+# This prevents pydantic-settings from trying to parse it as a List field
+_allowed_hosts_env = os.environ.pop("ALLOWED_HOSTS", None)
+if _allowed_hosts_env and "ALLOWED_HOSTS_STR" not in os.environ:
+    os.environ["ALLOWED_HOSTS_STR"] = _allowed_hosts_env
 
 # Create settings instance
 settings = Settings()
