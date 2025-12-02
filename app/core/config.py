@@ -10,11 +10,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 def convert_postgres_url(url: str) -> str:
     """
-    Convert postgres:// URL to postgresql+asyncpg:// format for async SQLAlchemy
+    Convert postgres:// or postgresql:// URL to postgresql+asyncpg:// format for async SQLAlchemy
     Render provides postgres:// URLs, but async SQLAlchemy needs postgresql+asyncpg://
     """
     if url.startswith("postgres://"):
         return url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgresql://") and "+asyncpg" not in url:
+        # Handle postgresql:// URLs that don't have a driver specified
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return url
 
 
@@ -26,8 +29,8 @@ class Settings(BaseSettings):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Convert postgres:// to postgresql+asyncpg:// for async support
-        if self.DATABASE_URL.startswith("postgres://"):
+        # Convert postgres:// or postgresql:// to postgresql+asyncpg:// for async support
+        if self.DATABASE_URL.startswith(("postgres://", "postgresql://")):
             self.DATABASE_URL = convert_postgres_url(self.DATABASE_URL)
     
     # Security
